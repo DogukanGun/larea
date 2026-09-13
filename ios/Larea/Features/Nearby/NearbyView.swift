@@ -1,17 +1,17 @@
 import MapKit
 import SwiftUI
 
-/// Home screen: a map of real places around the user with a bottom sheet to pick and join.
+/// Home screen: a map of real places around the user with a bottom panel to pick and join.
 struct NearbyView: View {
     @Environment(AppEnvironment.self) private var env
+    @Environment(AppRouter.self) private var router
     @State private var model: NearbyViewModel?
     @State private var camera: MapCameraPosition = .userLocation(fallback: .automatic)
     /// MapKit's own selection; kept separate so the card survives MapKit clearing it.
     @State private var mapSelection: String?
-    @State private var detent: PresentationDetent = .medium
+    @State private var detent: PanelDetent = .medium
     @State private var didFitOnce = false
     @State private var joinCount = 0
-    let sheetAllowed: Bool
     let onJoined: (String, String) -> Void
 
     var body: some View {
@@ -29,7 +29,66 @@ struct NearbyView: View {
 
     @ViewBuilder
     private func content(_ model: NearbyViewModel) -> some View {
-        @Bindable var model = model
+        ZStack(alignment: .bottom) {
+            map(model)
+            BottomPanel(detent: $detent) {
+                panelHeader(model)
+            } content: {
+                NearbySheet(model: model, onJoin: { venue in
+                    Task {
+                        if await model.join(venue) {
+                            joinCount += 1
+                            onJoined(venue.id, venue.name)
+                        }
+                    }
+                })
+            }
+        }
+        .alert("Not quite there", isPresented: Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })) {
+            Button("OK") { model.notice = nil }
+        } message: { Text(model.notice ?? "") }
+    }
+
+    @ViewBuilder
+    private func panelHeader(_ model: NearbyViewModel) -> some View {
+        VStack(spacing: Spacing.s) {
+            HStack(spacing: Spacing.s) {
+                if let venue = model.selectedVenue {
+                    Text(venue.name).font(.lareaHeadline).lineLimit(1)
+                } else {
+                    Circle().fill(model.locating ? Color.secondary : Color.success).frame(width: 8, height: 8)
+                    Text(model.locating ? "Finding your location…" : (model.discovering ? "Discovering places…" : (model.viewingElsewhere ? "Places on the map" : "Around you right now")))
+                        .font(.subheadline.weight(.semibold))
+                }
+                Spacer()
+                if model.loading || model.discovering { ProgressView().controlSize(.small) }
+            }
+            .padding(.horizontal, Spacing.l)
+            if let route = router.activeChatRoute {
+                Button { router.showActiveChat() } label: {
+                    Pill(text: "Back to \(route.venueName)", style: .sunny, symbol: "bubble.left.fill")
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("nearby.activeChip")
+            } else if let membership = env.session.session?.user.activeMembership, model.joining == nil {
+                Button {
+                    Task {
+                        if await model.rejoin(venueId: membership.venueId) {
+                            joinCount += 1
+                            onJoined(membership.venueId, membership.venueName)
+                        }
+                    }
+                } label: {
+                    Pill(text: "Rejoin \(membership.venueName)", style: .sunny, symbol: "arrow.uturn.backward")
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("nearby.rejoin")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func map(_ model: NearbyViewModel) -> some View {
         Map(position: $camera, selection: $mapSelection) {
             UserAnnotation()
             ForEach(model.venues) { venue in
@@ -72,24 +131,6 @@ struct NearbyView: View {
             }
             detent = .medium
         }
-        .sheet(isPresented: Binding(get: { sheetAllowed }, set: { _ in })) {
-            NearbySheet(model: model, onJoin: { venue in
-                Task {
-                    if await model.join(venue) {
-                        joinCount += 1
-                        onJoined(venue.id, venue.name)
-                    }
-                }
-            })
-            .presentationDetents([.height(150), .medium, .large], selection: $detent)
-            .presentationBackgroundInteraction(.enabled(upThrough: .medium))
-            .presentationDragIndicator(.visible)
-            .presentationCornerRadius(24)
-            .interactiveDismissDisabled()
-        }
-        .alert("Not quite there", isPresented: Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })) {
-            Button("OK") { model.notice = nil }
-        } message: { Text(model.notice ?? "") }
     }
 
     private var topBar: some View {
@@ -97,20 +138,12 @@ struct NearbyView: View {
             HStack(spacing: 8) {
                 LogoMark(size: 26)
                 Text("Larea").font(.system(size: 22, weight: .heavy, design: .rounded))
+                    .accessibilityIdentifier("nearby.root") // identifiers go on leaves: containers would override their children
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(.bar, in: Capsule())
             Spacer()
-            NavigationLink(value: "settings") {
-                Image(systemName: "gearshape.fill")
-                    .font(.headline)
-                    .foregroundStyle(Color.brandPrimary)
-                    .frame(width: 44, height: 44)
-                    .background(.bar, in: Circle())
-            }
-            .accessibilityLabel("Settings")
-            .accessibilityIdentifier("map.settings")
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -209,19 +242,12 @@ private struct VenueList: View {
                             .accessibilityHint(venue.eligible ? "Nearby, you can join" : "Get closer to join")
                     }
                 }
-            } header: {
-                HStack(spacing: Spacing.s) {
-                    Circle().fill(model.locating ? Color.secondary : Color.success).frame(width: 8, height: 8)
-                    Text(model.locating ? "Finding your location…" : (model.discovering ? "Discovering places…" : (model.viewingElsewhere ? "Places on the map" : "Around you right now")))
-                    Spacer()
-                    if model.loading || model.discovering { ProgressView().controlSize(.small) }
-                }
-                .textCase(nil)
             } footer: {
                 Text(model.zoomedOut ? "Zoom in to see cafés. \(model.attribution)" : model.attribution).font(.caption2)
             }
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
         .refreshable { await model.refresh() }
     }
 

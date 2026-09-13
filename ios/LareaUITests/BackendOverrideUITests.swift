@@ -19,8 +19,9 @@ final class BackendOverrideUITests: XCTestCase {
 
     func testPlistOverrideIsReadable() throws {
         let value = Self.plistOverride("LareaTestAPIBaseURL")
-        try XCTSkipIf(value == nil, "build with LAREA_TEST_API_BASE_URL to exercise this test")
-        XCTAssertEqual(value, "https://127.0.0.1:9/")
+        // Only meaningful when the override points at the unreachable sentinel; a real backend
+        // (the flow test's usual setup) would sign in instead of failing.
+        try XCTSkipIf(value != "https://127.0.0.1:9/", "build with LAREA_TEST_API_BASE_URL=https://127.0.0.1:9/ to exercise this test")
         let app = XCUIApplication()
         app.launchEnvironment["LAREA_API_BASE_URL"] = value!
         expectNetworkError(app)

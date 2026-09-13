@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { InjectEnv } from '../config/inject-env.js';
+import { type Env, type Features, featuresOf } from '../config/env.js';
 import { PrismaService } from '../infra/prisma/prisma.service.js';
 import { RedisService } from '../infra/redis/redis.service.js';
 import type { UserSnapshot } from '../common/types.js';
@@ -21,11 +23,14 @@ export interface MeView {
   suspendedAt: string | null;
   createdAt: string;
   activeMembership: { venueId: string; venueName: string; joinedAt: string } | null;
+  /** What this backend supports; apps hide features that are off. */
+  features: Features;
 }
 
 @Injectable()
 export class UsersService {
   constructor(
+    @InjectEnv() private readonly env: Env,
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly bus: RealtimeBus,
@@ -91,6 +96,7 @@ export class UsersService {
       activeMembership: membership
         ? { venueId: membership.venue.id, venueName: membership.venue.name, joinedAt: membership.joinedAt.toISOString() }
         : null,
+      features: featuresOf(this.env),
     };
   }
 

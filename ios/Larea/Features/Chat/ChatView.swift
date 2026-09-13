@@ -1,45 +1,51 @@
 import SwiftUI
 
+/// The chat screen. The view model is owned by `AppRouter` so the session (heartbeat, socket
+/// subscription) survives tab switches; the tab bar is hidden while the chat is on screen.
 struct ChatView: View {
-    @Environment(AppEnvironment.self) private var env
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var model: ChatViewModel?
+    let model: ChatViewModel
+    let venueName: String
+    let onLeft: () -> Void
     @State private var draft = ""
     @State private var reporting: ChatMessage?
     @State private var blocking: ChatMessage?
     @State private var scrolledId: String?
-    let venueId: String
-    let venueName: String
-    let onLeft: () -> Void
+    @State private var showMembers = false
 
     var body: some View {
-        Group {
-            if let model { content(model) } else { ProgressView() }
-        }
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                VStack(spacing: 1) {
-                    Text(venueName).font(.lareaHeadline)
-                    Text(presenceText).font(.caption).foregroundStyle(.secondary)
+        content(model)
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
+            .toolbarVisibility(.hidden, for: .tabBar)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    VStack(spacing: 1) {
+                        Text(venueName).font(.lareaHeadline)
+                        Text(presenceText).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { Task { await model.leave() } } label: { Label("Leave", systemImage: "chevron.left") }
+                        .labelStyle(.titleAndIcon)
+                        .accessibilityIdentifier("chat.leave")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showMembers = true } label: { Label("\(model.presence)", systemImage: "person.2.fill") }
+                        .labelStyle(.titleAndIcon)
+                        .accessibilityLabel(presenceText)
+                        .accessibilityIdentifier("chat.members")
                 }
             }
-            ToolbarItem(placement: .topBarLeading) {
-                Button { Task { await model?.leave() } } label: { Label("Leave", systemImage: "chevron.left") }
-                    .labelStyle(.titleAndIcon)
-                    .accessibilityIdentifier("chat.leave")
+            .sheet(isPresented: $showMembers) {
+                MembersSheet(venueId: model.venueId, chat: model)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
             }
-        }
-        .onAppear {
-            if model == nil { model = ChatViewModel(venueId: venueId, api: env.api, realtime: env.realtime, location: env.location, session: env.session) }
-            model?.start()
-        }
-        .onDisappear { model?.stop() }
     }
 
     private var presenceText: String {
-        let n = model?.presence ?? 0
+        let n = model.presence
         return n == 1 ? "1 person here" : "\(n) people here"
     }
 

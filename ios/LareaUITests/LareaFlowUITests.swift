@@ -66,10 +66,10 @@ final class LareaFlowUITests: XCTestCase {
         // Location permission persists across app reinstalls on the simulator, so the
         // permission screen may be skipped on a second run.
         let locationTitle = app.staticTexts["Where are you?"]
-        let mapSettings = app.buttons["map.settings"]
+        let mapRoot = app.descendants(matching: .any).matching(identifier: "nearby.root").firstMatch
         let deadline = Date().addingTimeInterval(30)
-        while Date() < deadline, !locationTitle.exists, !mapSettings.exists { sleep(1) }
-        XCTAssertTrue(locationTitle.exists || mapSettings.exists, "neither the location screen nor the map appeared")
+        while Date() < deadline, !locationTitle.exists, !mapRoot.exists { sleep(1) }
+        XCTAssertTrue(locationTitle.exists || mapRoot.exists, "neither the location screen nor the map appeared")
         if locationTitle.exists {
             snapshot(app, "06-location")
             app.buttons["location.allow"].tap()
@@ -86,9 +86,9 @@ final class LareaFlowUITests: XCTestCase {
         sleep(1)
         snapshot(app, "07-map-list")
         firstVenue.tap()
-        let joinButton = app.buttons["venue.card.join"]
-        if !joinButton.waitForExistence(timeout: 5) {
-            // Sheets with background interaction sometimes swallow the first synthesized tap.
+        let joinButton = app.descendants(matching: .any).matching(identifier: "venue.card.join").firstMatch
+        if !joinButton.waitForExistence(timeout: 8), firstVenue.exists {
+            // A synthesized tap on the panel list is sometimes swallowed; try once more.
             snapshot(app, "07a-after-first-tap")
             firstVenue.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         }
@@ -123,12 +123,20 @@ final class LareaFlowUITests: XCTestCase {
         sleep(1)
         snapshot(app, "09-chat-messages")
 
+        // Participants: the sheet lists the people in the chat, including us.
+        app.buttons["chat.members"].tap()
+        XCTAssertTrue(app.buttons["members.done"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts[name].waitForExistence(timeout: 10), "our own name is missing from the members list")
+        sleep(1)
+        snapshot(app, "09b-members")
+        app.buttons["members.done"].tap()
+
         app.buttons["chat.leave"].tap()
-        XCTAssertTrue(app.buttons["map.settings"].waitForExistence(timeout: 15))
-        app.buttons["map.settings"].tap()
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "nearby.root").firstMatch.waitForExistence(timeout: 15))
+        app.tabBars.buttons["Profile"].tap()
         XCTAssertTrue(app.staticTexts[name].waitForExistence(timeout: 10))
         sleep(1)
-        snapshot(app, "10-settings")
+        snapshot(app, "10-profile")
     }
 
     private func snapshot(_ app: XCUIApplication, _ name: String) {

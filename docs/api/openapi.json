@@ -373,6 +373,35 @@
         ]
       }
     },
+    "/venues/{id}/members": {
+      "get": {
+        "operationId": "PresenceController_members",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Who is in the chat right now (members only; blocked pairs are hidden from each other)",
+        "tags": [
+          "venues"
+        ]
+      }
+    },
     "/venues/{id}/leave": {
       "post": {
         "operationId": "PresenceController_leave",

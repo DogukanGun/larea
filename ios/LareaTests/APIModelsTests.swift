@@ -51,4 +51,26 @@ final class NearbyModelsTests: XCTestCase {
         let venue = NearbyVenue(id: "v", slug: "s", name: "n", label: "l", category: .park, address: nil, lat: 0, lng: 0, distanceM: 1260, eligible: false, memberCount: 0)
         XCTAssertEqual(venue.distanceText, "1.3 km")
     }
+
+    func testFeaturesDefaultToOffWhenAbsent() throws {
+        let legacy = """
+        {"id":"u1","email":"a@b.c","displayName":"anna","role":"USER","ageVerified":true,"ageVerifiedAt":null,"mutedUntil":null,"suspendedAt":null,"createdAt":"2026-09-13T10:00:00.000Z","activeMembership":null}
+        """
+        let me = try JSONDecoder().decode(MeView.self, from: Data(legacy.utf8))
+        XCTAssertNil(me.features)
+        XCTAssertEqual(me.capabilities, .none)
+
+        let current = """
+        {"id":"u1","email":"a@b.c","displayName":"anna","role":"USER","ageVerified":true,"ageVerifiedAt":null,"mutedUntil":null,"suspendedAt":null,"createdAt":"2026-09-13T10:00:00.000Z","activeMembership":null,"features":{"market":true,"payments":false}}
+        """
+        let now = try JSONDecoder().decode(MeView.self, from: Data(current.utf8))
+        XCTAssertEqual(now.capabilities, Features(images: false, polls: false, market: true, payments: false))
+    }
+
+    func testMembersResponseDecodes() throws {
+        let json = #"{"members":[{"id":"u1","displayName":"anna"},{"id":"u2","displayName":"ben"}],"count":3}"#
+        let response = try JSONDecoder().decode(MembersResponse.self, from: Data(json.utf8))
+        XCTAssertEqual(response.members.map(\.displayName), ["anna", "ben"])
+        XCTAssertEqual(response.count, 3)
+    }
 }

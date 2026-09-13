@@ -33,6 +33,7 @@ final class ChatViewModel {
     private var tasks: [Task<Void, Never>] = []
     private var started = false
     private var lastConnection: ConnectionState = .disconnected
+    private var subscription: EventSubscription?
 
     init(venueId: String, api: APIClient, realtime: RealtimeClient, location: LocationService, session: SessionStore) {
         self.venueId = venueId
@@ -48,7 +49,7 @@ final class ChatViewModel {
         myUserId = session.session?.user.id
         if let iso = session.session?.user.mutedUntil, let date = ISO8601DateFormatter.larea.date(from: iso), date > .now { mutedUntil = date }
         location.start()
-        realtime.onEvent = { [weak self] event in self?.handle(event) }
+        subscription = realtime.addObserver { [weak self] event in self?.handle(event) }
         realtime.connect()
         tasks = [
             Task { await self.loadHistory() },
@@ -57,11 +58,14 @@ final class ChatViewModel {
         ]
     }
 
+    /// Ends this chat session. The socket stays open: other screens (members, deals) use it too.
     func stop() {
         tasks.forEach { $0.cancel() }
         tasks = []
-        realtime.onEvent = nil
-        realtime.disconnect()
+        if let subscription { realtime.removeObserver(subscription) }
+        subscription = nil
+        started = false
+        lastConnection = .disconnected
     }
 
     // MARK: - Connection and presence

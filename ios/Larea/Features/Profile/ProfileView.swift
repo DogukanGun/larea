@@ -1,8 +1,8 @@
 import SwiftUI
 
-struct SettingsView: View {
+struct ProfileView: View {
     @Environment(AppEnvironment.self) private var env
-    @State private var model: SettingsViewModel?
+    @State private var model: ProfileViewModel?
     @State private var name = ""
     @State private var confirmDelete = false
     @FocusState private var focus: FormField?
@@ -11,17 +11,17 @@ struct SettingsView: View {
         Group {
             if let model { content(model) } else { ProgressView() }
         }
-        .navigationTitle("Settings")
+        .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            if model == nil { model = SettingsViewModel(api: env.api, sessions: env.sessions) }
+            if model == nil { model = ProfileViewModel(api: env.api, sessions: env.sessions) }
             name = env.session.session?.user.displayName ?? ""
             Task { await model?.loadBlocks() }
         }
     }
 
     @ViewBuilder
-    private func content(_ model: SettingsViewModel) -> some View {
+    private func content(_ model: ProfileViewModel) -> some View {
         @Bindable var model = model
         let user = env.session.session?.user
         let current = user?.displayName ?? ""
@@ -32,7 +32,7 @@ struct SettingsView: View {
                 HStack(spacing: Spacing.l) {
                     Avatar(name: current, seed: user?.id ?? "", size: 64)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(current).font(.lareaTitle3)
+                        Text(current).font(.lareaTitle3).accessibilityIdentifier("profile.name")
                         Text(user?.email ?? "").font(.subheadline).foregroundStyle(.secondary)
                         if user?.ageVerified == true {
                             Pill(text: "18+ verified", style: .success, symbol: "checkmark.seal.fill")
@@ -89,22 +89,8 @@ struct SettingsView: View {
         } message: {
             Text("Delete your account? Your profile is removed immediately and cannot be restored.")
         }
-        .alert("Settings", isPresented: Binding(get: { model.message != nil }, set: { if !$0 { model.message = nil } })) {
+        .alert("Profile", isPresented: Binding(get: { model.message != nil }, set: { if !$0 { model.message = nil } })) {
             Button("OK") { model.message = nil }
         } message: { Text(model.message ?? "") }
-    }
-}
-
-struct SuspendedView: View {
-    @Environment(AppEnvironment.self) private var env
-
-    var body: some View {
-        ScreenScaffold(
-            title: "Account suspended",
-            subtitle: "Your account was suspended after repeated guideline violations. A moderator will review it.",
-            hero: { HeroGlyph(symbol: "hand.raised.fill") }
-        ) {
-            SecondaryButton(title: "Sign out") { Task { await env.sessions.signOut() } }
-        }
     }
 }

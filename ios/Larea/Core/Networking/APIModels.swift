@@ -14,6 +14,16 @@ struct ActiveMembership: Codable, Sendable, Equatable {
     let joinedAt: String
 }
 
+/// What the backend supports; missing on older servers, in which case everything new is off.
+struct Features: Codable, Sendable, Equatable {
+    var images = false
+    var polls = false
+    var market = false
+    var payments = false
+
+    static let none = Features()
+}
+
 struct MeView: Codable, Sendable, Equatable {
     let id: String
     let email: String
@@ -25,6 +35,31 @@ struct MeView: Codable, Sendable, Equatable {
     let suspendedAt: String?
     let createdAt: String
     let activeMembership: ActiveMembership?
+    var features: Features? = nil
+
+    var capabilities: Features { features ?? .none }
+}
+
+extension Features {
+    private enum Keys: String, CodingKey { case images, polls, market, payments }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        images = try c.decodeIfPresent(Bool.self, forKey: .images) ?? false
+        polls = try c.decodeIfPresent(Bool.self, forKey: .polls) ?? false
+        market = try c.decodeIfPresent(Bool.self, forKey: .market) ?? false
+        payments = try c.decodeIfPresent(Bool.self, forKey: .payments) ?? false
+    }
+}
+
+struct Member: Decodable, Sendable, Identifiable, Equatable {
+    let id: String
+    let displayName: String
+}
+
+struct MembersResponse: Decodable, Sendable {
+    let members: [Member]
+    let count: Int
 }
 
 struct AuthResult: Decodable, Sendable {

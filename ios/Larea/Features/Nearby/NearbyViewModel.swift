@@ -144,12 +144,21 @@ final class NearbyViewModel {
 
     /// The server decides; a refusal comes back with its own message ("You need to be closer…").
     func join(_ venue: NearbyVenue) async -> Bool {
+        await join(venueId: venue.id)
+    }
+
+    /// Re-enters a chat the server still lists us in (after a relaunch or a tab switch gone stale).
+    func rejoin(venueId: String) async -> Bool {
+        await join(venueId: venueId)
+    }
+
+    private func join(venueId: String) async -> Bool {
         guard joining == nil, let fix = location.latestFix else { return false }
-        joining = venue.id
+        joining = venueId
         defer { joining = nil }
         do {
             let body = LocationFixBody(lat: fix.lat, lng: fix.lng, accuracy: fix.accuracyM, mocked: fix.mocked)
-            let _: JoinResult = try await api.send(try APIRequest(.POST, "venues/\(venue.id)/join", json: body))
+            let _: JoinResult = try await api.send(try APIRequest(.POST, "venues/\(venueId)/join", json: body))
             return true
         } catch {
             notice = error.userMessage

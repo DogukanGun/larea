@@ -7,8 +7,7 @@ import Observation
 @Observable
 final class RealtimeClient {
     private(set) var state: ConnectionState = .disconnected
-    /// Single consumer (the chat view model). Set before `connect()`.
-    var onEvent: (@MainActor (ServerEvent) -> Void)?
+    private var observers: [UUID: @MainActor (ServerEvent) -> Void] = [:]
 
     private let url: URL
     private let tokens: any TokenProviding
@@ -39,6 +38,37 @@ final class RealtimeClient {
         task = nil
         failPending(reason: "disconnected")
         state = .disconnected
+    }
+
+    // MARK: - Events
+
+    /// Registers a listener for every server event; several screens can listen at once.
+    @discardableResult
+    func addObserver(_ handler: @escaping @MainActor (ServerEvent) -> Void) -> EventSubscription {
+        let id = UUID()
+        observers[id] = handler
+        return EventSubscription(id: id)
+    }
+
+    func removeObserver(_ subscription: EventSubscription) {
+        observers[subscription.id] = nil
+    }
+
+    /// Events as a stream; unsubscribes when the consuming task is cancelled.
+    func events() -> AsyncStream<ServerEvent> {
+        AsyncStream { continuation in
+            let subscription = addObserver { event in continuation.yield(event) }
+            continuation.onTermination = { [weak self] _ in
+                Task { @MainActor in self?.removeObserver(subscription) }
+            }
+        }
+    }
+
+    /// Decodes one frame and delivers it. Internal so tests can feed frames without a socket.
+    func ingest(_ text: String) {
+        guard let data = text.data(using: .utf8), let event = try? decoder.decode(ServerEvent.self, from: data) else { return }
+        if case let .ack(ack) = event, let reqId = ack.reqId { resolve(reqId: reqId, with: ack) }
+        for handler in observers.values { handler(event) }
     }
 
     func join(venueId: String) async -> ServerEvent.Ack {
@@ -156,8 +186,8 @@ final class RealtimeClient {
             do {
                 let message = try await task.receive()
                 switch message {
-                case let .string(text): handle(text)
-                case let .data(data): handle(String(decoding: data, as: UTF8.self))
+                case let .string(text): ingest(text)
+                case let .data(data): ingest(String(decoding: data, as: UTF8.self))
                 @unknown default: break
                 }
             } catch {
@@ -177,11 +207,10 @@ final class RealtimeClient {
         return .other
     }
 
-    private func handle(_ text: String) {
-        guard let data = text.data(using: .utf8), let event = try? decoder.decode(ServerEvent.self, from: data) else { return }
-        if case let .ack(ack) = event, let reqId = ack.reqId { resolve(reqId: reqId, with: ack) }
-        onEvent?(event)
-    }
+}
+
+struct EventSubscription: Hashable, Sendable {
+    fileprivate let id: UUID
 }
 
 private final class SocketDelegate: NSObject, URLSessionWebSocketDelegate, @unchecked Sendable {

@@ -44,7 +44,10 @@ export const envSchema = z
     OVERPASS_CONTACT: z.string().default('dogukangundogan5@gmail.com'),
     OSM_CACHE_TTL_SEC: z.coerce.number().int().positive().default(86_400),
 
-
+    /** Neighbourhood marketplace. Unset = on everywhere except production. */
+    MARKET_ENABLED: z.preprocess((v) => (v === undefined || v === '' ? undefined : bool(v)), z.boolean().optional()),
+    /** Stripe payments inside the marketplace; needs the Stripe keys in production. */
+    MARKET_PAYMENTS_ENABLED: z.preprocess(bool, z.boolean()).default(false),
 
     REPORT_AUTO_HIDE_THRESHOLD: z.coerce.number().int().positive().default(3),
     MESSAGE_RETENTION_DAYS: z.coerce.number().int().positive().default(7),
@@ -68,6 +71,24 @@ export const envSchema = z
   });
 
 export type Env = z.infer<typeof envSchema>;
+
+/** Capabilities of this backend build and configuration, sent to the apps in `GET /me`. */
+export interface Features {
+  images: boolean;
+  polls: boolean;
+  market: boolean;
+  payments: boolean;
+}
+
+export function marketEnabled(env: Pick<Env, 'MARKET_ENABLED' | 'NODE_ENV'>): boolean {
+  return env.MARKET_ENABLED ?? env.NODE_ENV !== 'production';
+}
+
+export function featuresOf(env: Pick<Env, 'MARKET_ENABLED' | 'MARKET_PAYMENTS_ENABLED' | 'NODE_ENV'>): Features {
+  const market = marketEnabled(env);
+  // images and polls flip to true when their milestones ship; market/payments are configuration.
+  return { images: false, polls: false, market, payments: market && env.MARKET_PAYMENTS_ENABLED };
+}
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   const result = envSchema.safeParse(source);

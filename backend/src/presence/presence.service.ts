@@ -1,4 +1,5 @@
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { BlocksService } from '../blocks/blocks.service.js';
 import { forbidden, unprocessable } from '../common/errors.js';
 import { InjectEnv } from '../config/inject-env.js';
 import type { Env } from '../config/env.js';
@@ -26,6 +27,20 @@ export interface JoinResult {
 }
 
 export type HeartbeatState = 'eligible' | 'weak_gps' | 'outside' | 'ignored';
+
+export interface MemberView {
+  id: string;
+  displayName: string;
+}
+
+export interface MembersResult {
+  /** Present members the caller may see (blocked pairs are hidden), sorted by name. */
+  members: MemberView[];
+  /** Everyone present, including people hidden from the caller. */
+  count: number;
+}
+
+const MEMBERS_MAX = 200;
 
 export interface HeartbeatResult {
   ok: boolean;
@@ -58,6 +73,7 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly venues: VenuesService,
+    private readonly blocks: BlocksService,
     private readonly bus: RealtimeBus,
   ) {}
 
@@ -82,6 +98,19 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
 
   async findActive(userId: string, venueId: string): Promise<Membership | null> {
     return this.prisma.membership.findFirst({ where: { userId, venueId, status: 'ACTIVE' } });
+  }
+
+  /** Who is in the chat right now. Only members may look, and blocked pairs never see each other. */
+  async members(userId: string, venueId: string): Promise<MembersResult> {
+    if (!(await this.findActive(userId, venueId))) throw forbidden('NOT_MEMBER', 'Join the chat to see who is here.');
+    const [excluded, count] = await Promise.all([this.blocks.blockset(userId), this.venues.activeMemberCount(venueId)]);
+    const rows = await this.prisma.membership.findMany({
+      where: { venueId, status: 'ACTIVE', userId: { notIn: excluded }, user: { deletedAt: null } },
+      select: { user: { select: { id: true, displayName: true } } },
+      orderBy: { user: { displayNameLower: 'asc' } },
+      take: MEMBERS_MAX,
+    });
+    return { members: rows.map((r) => ({ id: r.user.id, displayName: r.user.displayName })), count };
   }
 
   /** Whether the user may currently send messages in the venue (present and recently confirmed). */

@@ -3,7 +3,7 @@ import Observation
 
 @MainActor
 @Observable
-final class SettingsViewModel {
+final class ProfileViewModel {
     var blocks: [BlockedUser] = []
     var busy = false
     var message: String?
