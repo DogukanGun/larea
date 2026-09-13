@@ -216,6 +216,20 @@ final class LareaFlowUITests: XCTestCase {
         sleep(1)
         snapshot(app, "10-profile")
 
+        // Payouts (only when the backend has payments enabled): the Stripe onboarding screen opens and offers to start setup.
+        let payouts = app.descendants(matching: .any).matching(identifier: "profile.payouts").firstMatch
+        if payouts.waitForExistence(timeout: 5) {
+            payouts.tap()
+            XCTAssertTrue(app.buttons["market.stripe.setup"].waitForExistence(timeout: 15), "the payouts screen did not open")
+            sleep(1)
+            snapshot(app, "11-payouts")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            let myListings = app.descendants(matching: .any).matching(identifier: "profile.listings").firstMatch
+            XCTAssertTrue(myListings.waitForExistence(timeout: 10))
+            myListings.tap()
+            XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'profile.listing.'")).firstMatch.waitForExistence(timeout: 15), "the listing created earlier is missing from My listings")
+            snapshot(app, "12-my-listings")
+        }
     }
 
     private func snapshot(_ app: XCUIApplication, _ name: String) {
