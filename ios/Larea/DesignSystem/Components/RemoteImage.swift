@@ -13,7 +13,8 @@ struct RemoteImage: View {
                 Image(uiImage: image).resizable().aspectRatio(contentMode: contentMode)
             } else {
                 Color(.tertiarySystemFill)
-                Image(systemName: failed ? "photo.badge.exclamationmark" : "photo")
+                // No URL means "no photo"; only a real download failure gets the warning glyph.
+                Image(systemName: failed && url != nil ? "photo.badge.exclamationmark" : "photo")
                     .font(.title2)
                     .foregroundStyle(.tertiary)
             }

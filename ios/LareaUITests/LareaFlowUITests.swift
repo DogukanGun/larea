@@ -86,6 +86,14 @@ final class LareaFlowUITests: XCTestCase {
         sleep(2)
         snapshot(app, "06a-market")
         app.buttons["market.create"].tap()
+        // Photo first, while no keyboard is up: the "+" tile opens a menu with the debug test image.
+        let photosMenu = app.descendants(matching: .any).matching(identifier: "market.create.photos").firstMatch
+        XCTAssertTrue(photosMenu.waitForExistence(timeout: 10), "the photo tile did not appear")
+        photosMenu.tap()
+        let seedPhoto = app.descendants(matching: .any).matching(identifier: "market.create.seedPhoto").firstMatch
+        XCTAssertTrue(seedPhoto.waitForExistence(timeout: 5), "the photo menu did not open")
+        seedPhoto.tap()
+        XCTAssertTrue(app.buttons["Remove photo"].waitForExistence(timeout: 5), "the photo was not added")
         let title = app.textFields["market.create.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 10))
         title.tap()
@@ -94,12 +102,6 @@ final class LareaFlowUITests: XCTestCase {
         app.textFields["market.create.price"].typeText("12")
         let priceDone = app.buttons["market.create.priceDone"]
         if priceDone.waitForExistence(timeout: 3) { priceDone.tap() }
-        let photosMenu = app.descendants(matching: .any).matching(identifier: "market.create.photos").firstMatch
-        if photosMenu.waitForExistence(timeout: 5) {
-            photosMenu.tap()
-            let seedPhoto = app.descendants(matching: .any).matching(identifier: "market.create.seedPhoto").firstMatch
-            if seedPhoto.waitForExistence(timeout: 5) { seedPhoto.tap() } else { app.tap() }
-        }
         snapshot(app, "06b-market-create")
         let submit = app.buttons["market.submit"]
         XCTAssertTrue(submit.waitForExistence(timeout: 5))
