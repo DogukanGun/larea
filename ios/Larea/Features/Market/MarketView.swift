@@ -95,8 +95,8 @@ struct MarketView: View {
                 .background(.bar, in: Capsule())
                 Spacer()
                 Picker("Mode", selection: $model.mode) {
-                    Image(systemName: "map.fill").tag(MarketViewModel.Mode.map)
-                    Image(systemName: "list.bullet").tag(MarketViewModel.Mode.list)
+                    Image(systemName: "map.fill").accessibilityLabel("Map").tag(MarketViewModel.Mode.map)
+                    Image(systemName: "list.bullet").accessibilityLabel("List").tag(MarketViewModel.Mode.list)
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 96)

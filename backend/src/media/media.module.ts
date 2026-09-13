@@ -27,6 +27,6 @@ import { IMAGE_MIME_TYPES } from './media.types.js';
   ],
   controllers: [MediaController],
   providers: [MediaService, MediaStorage],
-  exports: [MediaService],
+  exports: [MediaService, MediaStorage],
 })
 export class MediaModule {}

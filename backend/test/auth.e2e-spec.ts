@@ -63,6 +63,9 @@ describe('auth and profile', () => {
 
   it('reports health', async () => {
     const res = await ctx.http().get('/health').expect(200);
-    expect(res.body).toEqual({ status: 'ok', db: true, redis: true });
+    expect(res.body).toMatchObject({ status: 'ok', db: true, redis: true, uploads: { writable: true } });
+    expect(typeof res.body.uploads.freeBytes).toBe('number');
+    // Other specs leave failed webhook rows in the shared test database, so only the shape is asserted.
+    expect(typeof res.body.stripe.failedLastHour).toBe('number');
   });
 });
