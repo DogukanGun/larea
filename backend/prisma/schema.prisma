@@ -66,6 +66,41 @@ enum EnforcementKind {
   SUSPEND
 }
 
+enum ListingKind {
+  OFFER
+  REQUEST
+}
+
+enum ListingCategory {
+  FURNITURE
+  ELECTRONICS
+  CLOTHING
+  KIDS
+  HOME
+  SPORTS
+  BOOKS
+  SERVICES
+  HELP
+  OTHER
+}
+
+enum ListingStatus {
+  ACTIVE
+  RESERVED
+  SOLD
+  CANCELLED
+  EXPIRED
+  REMOVED
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  WITHDRAWN
+  EXPIRED
+}
+
 enum ReportReason {
   HARASSMENT
   THREAT
@@ -75,6 +110,8 @@ enum ReportReason {
   SCAM
   PERSONAL_INFO
   OTHER
+  PROHIBITED_ITEM
+  OFF_PLATFORM_PAYMENT
 }
 
 enum ReportStatus {
@@ -127,6 +164,8 @@ model User {
   media            Media[]
   polls            Poll[]
   pollVotes        PollVote[]
+  listings         Listing[]
+  offers           Offer[]
 }
 
 model RefreshToken {
@@ -290,8 +329,9 @@ model Media {
   createdAt   DateTime    @default(now())
   attachedAt  DateTime?
 
-  owner   User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  message Message?
+  owner         User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  message       Message?
+  listingImages ListingImage[]
 
   @@index([ownerId, createdAt])
   @@index([status, createdAt])
@@ -301,6 +341,7 @@ model Violation {
   id         String          @id @default(uuid())
   userId     String
   messageId  String?
+  listingId  String?
   severity   Int
   categories String[]        @default([])
   source     ViolationSource @default(AUTO)
@@ -325,10 +366,12 @@ model Enforcement {
   @@index([userId, createdAt])
 }
 
+/// A report targets exactly one thing: a message or a listing (enforced by a CHECK constraint).
 model Report {
   id             String       @id @default(uuid())
   reporterId     String
-  messageId      String
+  messageId      String?
+  listingId      String?
   reportedUserId String
   reason         ReportReason
   details        String?
@@ -337,13 +380,84 @@ model Report {
   reviewedAt     DateTime?
   createdAt      DateTime     @default(now())
 
-  reporter     User    @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
-  reportedUser User    @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: Cascade)
-  message      Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  reporter     User     @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser User     @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  message      Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  listing      Listing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
   @@unique([reporterId, messageId])
+  @@unique([reporterId, listingId])
   @@index([status, createdAt])
   @@index([messageId])
+  @@index([listingId])
+}
+
+/// Something a neighbour sells (OFFER) or paid help they ask for (REQUEST). The exact position
+/// is stored for the owner only; everyone else sees the geohash-7 cell centre (`publicLat/Lng`).
+model Listing {
+  id               String          @id @default(uuid())
+  ownerId          String
+  kind             ListingKind
+  category         ListingCategory
+  title            String
+  description      String          @default("")
+  priceCents       Int
+  currency         String          @default("eur")
+  status           ListingStatus   @default(ACTIVE)
+  lat              Float
+  lng              Float
+  geohash7         String
+  publicLat        Float
+  publicLng        Float
+  severity         Int             @default(0)
+  categories       String[]        @default([])
+  moderationReason String?
+  expiresAt        DateTime
+  removedAt        DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  owner   User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  images  ListingImage[]
+  offers  Offer[]
+  reports Report[]
+
+  @@index([status, publicLat, publicLng])
+  @@index([ownerId, createdAt])
+  @@index([status, expiresAt])
+}
+
+model ListingImage {
+  listingId String
+  mediaId   String
+  position  Int
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  media   Media   @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@id([listingId, mediaId])
+  @@unique([listingId, position])
+}
+
+/// A price proposed by a buyer (OFFER listing) or a helper (REQUEST listing).
+model Offer {
+  id          String      @id @default(uuid())
+  listingId   String
+  offererId   String
+  amountCents Int
+  note        String?
+  status      OfferStatus @default(PENDING)
+  expiresAt   DateTime
+  respondedAt DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  offerer User    @relation(fields: [offererId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, status])
+  @@index([offererId, createdAt])
+  @@index([status, expiresAt])
 }
 
 model Block {

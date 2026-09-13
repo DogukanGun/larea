@@ -16,13 +16,14 @@ enum ServerEvent: Sendable, Equatable {
     case enforcement(kind: String, until: String?, message: String)
     case presence(venueId: String, count: Int)
     case pollUpdate(venueId: String, messageId: String, poll: PollView)
+    case marketUpdate(kind: String, listingId: String, offerId: String?, orderId: String?)
     case pong(reqId: String?)
     case error(reqId: String?, code: String, message: String)
 }
 
 extension ServerEvent: Decodable {
     private enum Keys: String, CodingKey {
-        case type, reqId, ok, reason, data, message, venueId, messageId, kind, until, count, code, poll
+        case type, reqId, ok, reason, data, message, venueId, messageId, kind, until, count, code, poll, listingId, offerId, orderId
     }
 
     init(from decoder: Decoder) throws {
@@ -58,6 +59,13 @@ extension ServerEvent: Decodable {
                 venueId: try c.decode(String.self, forKey: .venueId),
                 messageId: try c.decode(String.self, forKey: .messageId),
                 poll: try c.decode(PollView.self, forKey: .poll)
+            )
+        case "market_update":
+            self = .marketUpdate(
+                kind: try c.decode(String.self, forKey: .kind),
+                listingId: try c.decode(String.self, forKey: .listingId),
+                offerId: try c.decodeIfPresent(String.self, forKey: .offerId),
+                orderId: try c.decodeIfPresent(String.self, forKey: .orderId)
             )
         case "pong":
             self = .pong(reqId: try c.decodeIfPresent(String.self, forKey: .reqId))

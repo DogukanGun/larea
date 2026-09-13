@@ -21,6 +21,9 @@ final class ServerEventDecodingTests: XCTestCase {
         XCTAssertEqual(pollVenue, "v1"); XCTAssertEqual(pollMessage, "m9")
         XCTAssertEqual(poll.options.map(\.votes), [2, 1]); XCTAssertNil(poll.myOptionId); XCTAssertFalse(poll.isClosed)
 
+        guard case let .marketUpdate(kind, listingId, offerId, orderId) = try decode(#"{"type":"market_update","kind":"offer_received","listingId":"l1","offerId":"o1"}"#) else { return XCTFail("market_update") }
+        XCTAssertEqual(kind, "offer_received"); XCTAssertEqual(listingId, "l1"); XCTAssertEqual(offerId, "o1"); XCTAssertNil(orderId)
+
         guard case let .messageHidden(venueId, messageId) = try decode(#"{"type":"message_hidden","venueId":"v1","messageId":"m1"}"#) else { return XCTFail("hidden") }
         XCTAssertEqual(venueId, "v1"); XCTAssertEqual(messageId, "m1")
 

@@ -9,6 +9,7 @@ import { UsersService } from '../users/users.service.js';
 
 export interface ViolationInput {
   messageId?: string;
+  listingId?: string;
   severity: number;
   categories: string[];
   source?: ViolationSource;
@@ -28,7 +29,7 @@ export class EnforcementService {
   /** Records a violation and applies the strike policy. */
   async recordViolation(userId: string, input: ViolationInput): Promise<void> {
     await this.prisma.violation.create({
-      data: { userId, messageId: input.messageId, severity: input.severity, categories: input.categories, source: input.source ?? 'AUTO' },
+      data: { userId, messageId: input.messageId, listingId: input.listingId, severity: input.severity, categories: input.categories, source: input.source ?? 'AUTO' },
     });
     const since = new Date(Date.now() - STRIKE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
     const recent = await this.prisma.violation.findMany({ where: { userId, createdAt: { gte: since } }, select: { severity: true } });
@@ -39,7 +40,7 @@ export class EnforcementService {
     } else if (outcome.action === 'suspend') {
       await this.suspend(userId, 'Strike threshold reached.', 'SYSTEM');
     }
-    if (outcome.incident) await this.openIncident(userId, outcome.incident, input.messageId);
+    if (outcome.incident) await this.openIncident(userId, outcome.incident, input.messageId ?? input.listingId);
   }
 
   async mute(userId: string, hours: number, reason: string, createdBy: string): Promise<Date> {

@@ -140,6 +140,9 @@ export class UsersService {
         where: { userId, status: 'ACTIVE' },
         data: { status: 'ENDED', endReason: 'USER_LEFT', endedAt: now },
       }),
+      // Marketplace: open listings and offers close; orders stay as the ledger requires.
+      this.prisma.listing.updateMany({ where: { ownerId: userId, status: { in: ['ACTIVE', 'RESERVED'] } }, data: { status: 'CANCELLED' } }),
+      this.prisma.offer.updateMany({ where: { offererId: userId, status: 'PENDING' }, data: { status: 'WITHDRAWN', respondedAt: now } }),
     ]);
     await this.invalidateSnapshot(userId);
     this.bus.closeUser(userId, CLOSE_UNAUTHORIZED, 'account deleted');

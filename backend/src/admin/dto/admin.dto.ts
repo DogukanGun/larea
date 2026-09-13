@@ -4,6 +4,9 @@ import { IncidentStatus, ReportStatus } from '../../generated/prisma/enums.js';
 
 export enum ResolveAction {
   DISMISS = 'DISMISS',
+  /** Hide the reported message or remove the reported listing. */
+  HIDE_CONTENT = 'HIDE_CONTENT',
+  /** Older name of HIDE_CONTENT, still accepted. */
   HIDE_MESSAGE = 'HIDE_MESSAGE',
   MUTE = 'MUTE',
   SUSPEND = 'SUSPEND',

@@ -60,6 +60,22 @@ export const envSchema = z
     MARKET_ENABLED: z.preprocess((v) => (v === undefined || v === '' ? undefined : bool(v)), z.boolean().optional()),
     /** Stripe payments inside the marketplace; needs the Stripe keys in production. */
     MARKET_PAYMENTS_ENABLED: z.preprocess(bool, z.boolean()).default(false),
+    /** How far around the caller listings are visible and can be dealt with. */
+    MARKET_RADIUS_M: z.coerce.number().positive().default(2000),
+    MARKET_CURRENCY: z.string().length(3).default('eur'),
+    MARKET_FEE_PERCENT: z.coerce.number().min(0).max(30).default(10),
+    MARKET_FEE_MIN_CENTS: z.coerce.number().int().min(0).default(50),
+    MARKET_LISTING_TTL_DAYS: z.coerce.number().int().positive().default(30),
+    MARKET_LISTING_PURGE_DAYS: z.coerce.number().int().positive().default(30),
+    MARKET_OFFER_TTL_HOURS: z.coerce.number().int().positive().default(72),
+    MARKET_MIN_PRICE_CENTS: z.coerce.number().int().positive().default(100),
+    MARKET_MAX_PRICE_CENTS: z.coerce.number().int().positive().default(50_000),
+    MARKET_MAX_DAILY_VOLUME_CENTS: z.coerce.number().int().positive().default(100_000),
+    MARKET_MAX_IMAGES: z.coerce.number().int().min(0).max(10).default(5),
+    /** Most listings one feed request returns. */
+    MARKET_MAX_LISTINGS: z.coerce.number().int().positive().default(100),
+    /** Accounts younger than this cannot list or offer (throwaway-account brake). */
+    MARKET_MIN_ACCOUNT_AGE_HOURS: z.coerce.number().min(0).default(24),
 
     REPORT_AUTO_HIDE_THRESHOLD: z.coerce.number().int().positive().default(3),
     MESSAGE_RETENTION_DAYS: z.coerce.number().int().positive().default(7),
@@ -79,6 +95,9 @@ export const envSchema = z
     }
     if (env.DISCOVERY_MAX_RADIUS_M < env.DISCOVERY_RADIUS_M) {
       ctx.addIssue({ code: 'custom', path: ['DISCOVERY_MAX_RADIUS_M'], message: 'must be >= DISCOVERY_RADIUS_M' });
+    }
+    if (env.MARKET_MAX_PRICE_CENTS < env.MARKET_MIN_PRICE_CENTS) {
+      ctx.addIssue({ code: 'custom', path: ['MARKET_MAX_PRICE_CENTS'], message: 'must be >= MARKET_MIN_PRICE_CENTS' });
     }
   });
 

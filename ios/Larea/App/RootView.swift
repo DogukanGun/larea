@@ -55,20 +55,30 @@ struct ChatRoute: Hashable {
 struct MainFlowView: View {
     @Environment(AppEnvironment.self) private var env
     @Bindable var router: AppRouter
+    @State private var deals: DealsViewModel?
 
     var body: some View {
         TabView(selection: $router.tab) {
             Tab("Nearby", systemImage: "map.fill", value: AppTab.nearby) { NearbyTab() }
             Tab("Market", systemImage: "storefront.fill", value: AppTab.market) { MarketTab() }
-            Tab("Deals", systemImage: "tag.fill", value: AppTab.deals) { DealsTab() }
+            Tab("Deals", systemImage: "tag.fill", value: AppTab.deals) {
+                if let deals { DealsTab(model: deals) } else { ProgressView() }
+            }
+            .badge(deals?.attentionCount ?? 0)
             Tab("Profile", systemImage: "person.crop.circle.fill", value: AppTab.profile) { ProfileTab() }
         }
         .environment(router)
         .task {
             env.realtime.connect()
             router.drainPending()
+            if deals == nil {
+                let model = DealsViewModel(api: env.api, realtime: env.realtime)
+                deals = model
+                if env.session.session?.user.capabilities.market == true { model.start() }
+            }
         }
         .onDisappear {
+            deals?.stop()
             env.realtime.disconnect()
             router.reset()
         }
@@ -108,17 +118,29 @@ private struct MarketTab: View {
         @Bindable var router = router
         NavigationStack(path: $router.marketPath) {
             MarketView()
+                .navigationDestination(for: MarketRoute.self) { route in
+                    switch route {
+                    case let .listing(id): ListingDetailView(listingId: id)
+                    }
+                }
         }
     }
 }
 
 private struct DealsTab: View {
     @Environment(AppRouter.self) private var router
+    let model: DealsViewModel
 
     var body: some View {
         @Bindable var router = router
         NavigationStack(path: $router.dealsPath) {
-            DealsView()
+            DealsView(model: model)
+                .navigationDestination(for: DealsRoute.self) { route in
+                    switch route {
+                    case let .listing(id): ListingDetailView(listingId: id)
+                    case let .order(id): ContentUnavailableView("Order \(id.prefix(8))", systemImage: "creditcard", description: Text("Payments arrive in the next update."))
+                    }
+                }
         }
     }
 }

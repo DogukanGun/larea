@@ -3,6 +3,7 @@ import { InjectEnv } from '../config/inject-env.js';
 import type { Env } from '../config/env.js';
 import { PrismaService } from '../infra/prisma/prisma.service.js';
 import { RedisService } from '../infra/redis/redis.service.js';
+import { ListingsService } from '../market/listings.service.js';
 import { MediaService } from '../media/media.service.js';
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
@@ -16,6 +17,8 @@ export interface RetentionResult {
   tokens: number;
   /** Media files removed: with purged messages, orphaned uploads, old records. */
   media: number;
+  /** Closed marketplace listings purged with their photos. */
+  listings: number;
 }
 
 /**
@@ -32,6 +35,7 @@ export class RetentionService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly media: MediaService,
+    private readonly listings: ListingsService,
   ) {}
 
   onModuleInit(): void {
@@ -66,6 +70,7 @@ export class RetentionService implements OnModuleInit, OnModuleDestroy {
     ).map((m) => m.mediaId!);
     const messages = await this.prisma.message.deleteMany({ where: ordinary });
     const flaggedMessages = await this.prisma.message.deleteMany({ where: flagged });
+    const listings = await this.listings.purgeClosed(now);
     const media = (await this.media.purge(purgedMedia)) + (await this.media.sweepOrphans(now));
     const memberships = await this.prisma.membership.deleteMany({ where: { status: 'ENDED', endedAt: { lt: days(30) } } });
     const violations = await this.prisma.violation.deleteMany({ where: { createdAt: { lt: recordCutoff } } });
@@ -80,6 +85,7 @@ export class RetentionService implements OnModuleInit, OnModuleDestroy {
       violations: violations.count,
       tokens: tokens.count,
       media,
+      listings,
     };
     this.logger.log(result, 'retention run complete');
     return result;

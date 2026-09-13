@@ -80,6 +80,37 @@ final class LareaFlowUITests: XCTestCase {
             }
         }
 
+        // Marketplace: post a listing with a seeded photo and find it in the feed.
+        app.tabBars.buttons["Market"].tap()
+        XCTAssertTrue(app.buttons["market.create"].waitForExistence(timeout: 15))
+        sleep(2)
+        snapshot(app, "06a-market")
+        app.buttons["market.create"].tap()
+        let title = app.textFields["market.create.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        title.tap()
+        title.typeText("UI test desk lamp")
+        app.textFields["market.create.price"].tap()
+        app.textFields["market.create.price"].typeText("12")
+        let priceDone = app.buttons["market.create.priceDone"]
+        if priceDone.waitForExistence(timeout: 3) { priceDone.tap() }
+        let photosMenu = app.descendants(matching: .any).matching(identifier: "market.create.photos").firstMatch
+        if photosMenu.waitForExistence(timeout: 5) {
+            photosMenu.tap()
+            let seedPhoto = app.descendants(matching: .any).matching(identifier: "market.create.seedPhoto").firstMatch
+            if seedPhoto.waitForExistence(timeout: 5) { seedPhoto.tap() } else { app.tap() }
+        }
+        snapshot(app, "06b-market-create")
+        let submit = app.buttons["market.submit"]
+        XCTAssertTrue(submit.waitForExistence(timeout: 5))
+        if !submit.isHittable { app.swipeUp() }
+        submit.tap()
+        XCTAssertTrue(app.staticTexts["UI test desk lamp"].waitForExistence(timeout: 30), "the new listing did not open")
+        sleep(1)
+        snapshot(app, "06c-market-listing")
+        app.tabBars.buttons["Nearby"].tap()
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "nearby.root").firstMatch.waitForExistence(timeout: 15))
+
         // The sheet lists real places nearest first; the first row is the place we are standing at.
         let firstVenue = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'venue.' AND identifier != 'venue.card.join'")).firstMatch
         XCTAssertTrue(firstVenue.waitForExistence(timeout: 150), "the place list did not load")
@@ -181,6 +212,7 @@ final class LareaFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts[name].waitForExistence(timeout: 10))
         sleep(1)
         snapshot(app, "10-profile")
+
     }
 
     private func snapshot(_ app: XCUIApplication, _ name: String) {

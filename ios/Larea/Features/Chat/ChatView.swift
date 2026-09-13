@@ -22,6 +22,9 @@ struct ChatView: View {
     @State private var attachment: ComposerAttachment?
     @State private var viewing: ImageAttachment?
     @State private var showCreatePoll = false
+    /// Lift of the composer above the keyboard, tracked by hand: SwiftUI's automatic keyboard
+    /// avoidance is unreliable for this screen inside a TabView after the tab bar is hidden.
+    @State private var keyboardInset: CGFloat = 0
 
     var body: some View {
         content(model)
@@ -105,6 +108,18 @@ struct ChatView: View {
                     Task { await model.send(text) }
                 }
             }
+            .padding(.bottom, keyboardInset)
+        }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+            guard let frame = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue,
+                  let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).flatMap(\.windows).first(where: \.isKeyWindow)
+            else { return }
+            let overlap = max(0, window.bounds.maxY - frame.origin.y - window.safeAreaInsets.bottom)
+            withAnimation(.easeOut(duration: 0.25)) { keyboardInset = overlap }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            withAnimation(.easeOut(duration: 0.25)) { keyboardInset = 0 }
         }
         .fullScreenCover(item: $viewing) { image in ImageViewer(image: image) }
         .sheet(isPresented: $showCreatePoll) {
@@ -430,8 +445,8 @@ private struct Composer: View {
                     Button("Create poll", systemImage: "chart.bar") { onCreatePoll() }
                         .accessibilityIdentifier("chat.poll")
                     #if DEBUG
-                    if UserDefaults.standard.bool(forKey: "LareaTestSeedImage") {
-                        Button("Use test image", systemImage: "testtube.2") { attach(Self.testImage()) }
+                    if TestImage.enabled {
+                        Button("Use test image", systemImage: "testtube.2") { attach(TestImage.make()) }
                             .accessibilityIdentifier("chat.attach.seed")
                     }
                     #endif
@@ -496,21 +511,6 @@ private struct Composer: View {
         attachment = ComposerAttachment(data: data, preview: preview)
     }
 
-    #if DEBUG
-    /// A deterministic picture for UI tests, drawn at runtime (nothing synthetic ships).
-    private static func testImage() -> Data {
-        let size = CGSize(width: 640, height: 480)
-        let renderer = UIGraphicsImageRenderer(size: size)
-        let image = renderer.image { ctx in
-            let colors = [UIColor.systemIndigo.cgColor, UIColor.systemOrange.cgColor] as CFArray
-            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1])!
-            ctx.cgContext.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: size.width, y: size.height), options: [])
-            UIColor.white.setFill()
-            ctx.cgContext.fillEllipse(in: CGRect(x: 220, y: 140, width: 200, height: 200))
-        }
-        return image.jpegData(compressionQuality: 0.9) ?? Data()
-    }
-    #endif
 }
 
 private struct RemovedSheet: View {
@@ -530,22 +530,42 @@ private struct RemovedSheet: View {
     }
 }
 
+struct ReportReasonOption: Identifiable {
+    let code: String
+    let title: String
+    let detail: String
+    let symbol: String
+    var id: String { code }
+}
+
 struct ReportSheet: View {
     let onReport: (String) -> Void
-    private let reasons: [(code: String, title: String, detail: String, symbol: String)] = [
-        ("HARASSMENT", "Harassment", "Targeting or bullying someone", "person.crop.circle.badge.exclamationmark"),
-        ("THREAT", "Threat", "Threatening or intimidating", "exclamationmark.shield"),
-        ("HATE", "Hate", "Attacks on a group of people", "hand.thumbsdown"),
-        ("SEXUAL", "Sexual content", "Explicit or unwanted advances", "eye.slash"),
-        ("SPAM", "Spam", "Repeated or off-topic posts", "arrow.2.squarepath"),
-        ("SCAM", "Scam", "Fraud or suspicious offers", "creditcard.trianglebadge.exclamationmark"),
-        ("PERSONAL_INFO", "Personal information", "Sharing someone's private details", "lock.open"),
-        ("OTHER", "Something else", "Anything else that feels wrong", "ellipsis.circle"),
+    var reasons: [ReportReasonOption] = ReportSheet.chatReasons
+
+    static let chatReasons: [ReportReasonOption] = [
+        ReportReasonOption(code: "HARASSMENT", title: "Harassment", detail: "Targeting or bullying someone", symbol: "person.crop.circle.badge.exclamationmark"),
+        ReportReasonOption(code: "THREAT", title: "Threat", detail: "Threatening or intimidating", symbol: "exclamationmark.shield"),
+        ReportReasonOption(code: "HATE", title: "Hate", detail: "Attacks on a group of people", symbol: "hand.thumbsdown"),
+        ReportReasonOption(code: "SEXUAL", title: "Sexual content", detail: "Explicit or unwanted advances", symbol: "eye.slash"),
+        ReportReasonOption(code: "SPAM", title: "Spam", detail: "Repeated or off-topic posts", symbol: "arrow.2.squarepath"),
+        ReportReasonOption(code: "SCAM", title: "Scam", detail: "Fraud or suspicious offers", symbol: "creditcard.trianglebadge.exclamationmark"),
+        ReportReasonOption(code: "PERSONAL_INFO", title: "Personal information", detail: "Sharing someone's private details", symbol: "lock.open"),
+        ReportReasonOption(code: "OTHER", title: "Something else", detail: "Anything else that feels wrong", symbol: "ellipsis.circle"),
+    ]
+
+    static let listingReasons: [ReportReasonOption] = [
+        ReportReasonOption(code: "PROHIBITED_ITEM", title: "Not allowed here", detail: "Weapons, drugs, animals, counterfeit or stolen goods", symbol: "nosign"),
+        ReportReasonOption(code: "SCAM", title: "Scam", detail: "Looks fraudulent or misleading", symbol: "creditcard.trianglebadge.exclamationmark"),
+        ReportReasonOption(code: "OFF_PLATFORM_PAYMENT", title: "Asks to pay elsewhere", detail: "Wants cash, bank transfer or another app", symbol: "arrow.uturn.right.circle"),
+        ReportReasonOption(code: "SEXUAL", title: "Sexual content", detail: "Explicit photos or services", symbol: "eye.slash"),
+        ReportReasonOption(code: "HARASSMENT", title: "Harassment", detail: "Targets or bullies someone", symbol: "person.crop.circle.badge.exclamationmark"),
+        ReportReasonOption(code: "PERSONAL_INFO", title: "Personal information", detail: "Shares someone's private details", symbol: "lock.open"),
+        ReportReasonOption(code: "OTHER", title: "Something else", detail: "Anything else that feels wrong", symbol: "ellipsis.circle"),
     ]
 
     var body: some View {
         NavigationStack {
-            List(reasons, id: \.code) { reason in
+            List(reasons) { reason in
                 Button { onReport(reason.code) } label: {
                     HStack(spacing: Spacing.m) {
                         Image(systemName: reason.symbol)

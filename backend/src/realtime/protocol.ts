@@ -19,6 +19,21 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
 
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
+/** Marketplace events sent to the people involved (never to a room). */
+export type MarketUpdateKind =
+  | 'offer_received'
+  | 'offer_accepted'
+  | 'offer_declined'
+  | 'offer_withdrawn'
+  | 'offer_expired'
+  | 'order_paid'
+  | 'order_completed'
+  | 'order_cancelled'
+  | 'order_refunded'
+  | 'listing_removed'
+  | 'listing_expired'
+  | 'payouts_ready';
+
 export type RemovalReason = 'user_left' | 'out_of_range' | 'stale' | 'unconfirmed' | 'venue_closed' | 'suspended' | 'replaced';
 
 export interface ChatImageView {
@@ -63,6 +78,7 @@ export type ServerEvent =
   | { type: 'enforcement'; kind: 'mute' | 'suspend'; until: string | null; message: string }
   | { type: 'presence'; venueId: string; count: number }
   | { type: 'poll_update'; venueId: string; messageId: string; poll: ChatPollView }
+  | { type: 'market_update'; kind: MarketUpdateKind; listingId: string; offerId?: string; orderId?: string }
   | { type: 'pong'; reqId?: string }
   | { type: 'error'; reqId?: string; code: string; message: string };
 

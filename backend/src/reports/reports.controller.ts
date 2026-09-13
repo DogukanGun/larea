@@ -25,3 +25,19 @@ export class ReportsController {
     return this.reports.create(user.id, messageId, dto);
   }
 }
+
+@ApiTags('market')
+@ApiBearerAuth()
+@Controller('market/listings/:id/reports')
+@UseGuards(JwtAuthGuard, NotSuspendedGuard, AgeVerifiedGuard, RateLimitGuard)
+export class ListingReportsController {
+  constructor(private readonly reports: ReportsService) {}
+
+  @Post()
+  @HttpCode(200)
+  @RateLimit({ limit: 20, windowSec: 3600 })
+  @ApiOperation({ summary: 'Report a marketplace listing for moderator review' })
+  create(@CurrentUser() user: UserSnapshot, @Param('id') listingId: string, @Body() dto: CreateReportDto): Promise<ReportResult> {
+    return this.reports.createForListing(user.id, listingId, dto);
+  }
+}

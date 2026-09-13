@@ -120,6 +120,23 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
     return m.lastEligibleAt.getTime() >= Date.now() - this.env.WEAK_GPS_GRACE_SEC * 1000;
   }
 
+  /**
+   * The checks every location-bound action shares: no simulated fixes (outside development),
+   * no teleporting, and a usable accuracy. Remembers the fix for the next plausibility check.
+   */
+  async checkFix(userId: string, fix: LocationFix): Promise<void> {
+    if (fix.mocked && !this.env.ALLOW_MOCK_LOCATIONS) {
+      throw unprocessable('MOCK_LOCATION', 'Mock locations are not allowed.');
+    }
+    if (!(await this.isPlausible(userId, fix))) {
+      throw unprocessable('IMPLAUSIBLE_MOVEMENT', "We couldn't confirm your location. Please try again in a moment.");
+    }
+    if (fix.accuracy > this.env.MAX_ACCURACY_M) {
+      throw unprocessable('LOCATION_IMPRECISE', "We can't confirm your location yet. Move outdoors or wait for a better GPS fix.");
+    }
+    await this.rememberFix(userId, fix);
+  }
+
   async join(userId: string, venueId: string, fix: LocationFix): Promise<JoinResult> {
     const venue = await this.venues.getActive(venueId);
 

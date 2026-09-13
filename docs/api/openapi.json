@@ -546,6 +546,507 @@
         ]
       }
     },
+    "/market/listings": {
+      "post": {
+        "operationId": "ListingsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateListingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Post a listing at your current location (shown to others approximately); text and photos are moderated",
+        "tags": [
+          "market"
+        ]
+      },
+      "get": {
+        "operationId": "ListingsController_feed",
+        "parameters": [
+          {
+            "name": "lat",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": 52.5219,
+              "type": "number"
+            }
+          },
+          {
+            "name": "lng",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": 13.4132,
+              "type": "number"
+            }
+          },
+          {
+            "name": "accuracy",
+            "required": true,
+            "in": "query",
+            "description": "Horizontal accuracy radius in metres (68% confidence)",
+            "schema": {
+              "example": 12,
+              "type": "number"
+            }
+          },
+          {
+            "name": "mocked",
+            "required": false,
+            "in": "query",
+            "description": "True when the OS reports a mock/simulated location",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "radiusM",
+            "required": false,
+            "in": "query",
+            "description": "Search radius in metres, capped at MARKET_RADIUS_M",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OFFER",
+                "REQUEST"
+              ]
+            }
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FURNITURE",
+                "ELECTRONICS",
+                "CLOTHING",
+                "KIDS",
+                "HOME",
+                "SPORTS",
+                "BOOKS",
+                "SERVICES",
+                "HELP",
+                "OTHER"
+              ]
+            }
+          },
+          {
+            "name": "minPriceCents",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "maxPriceCents",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Words to look for in the title",
+            "schema": {
+              "maxLength": 60,
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "distance",
+              "type": "string",
+              "enum": [
+                "distance",
+                "newest",
+                "price"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listings within reach of the given fix, with filters",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/market/listings/{id}": {
+      "get": {
+        "operationId": "ListingsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lat",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "lng",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "accuracy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "One listing; needs a fix within MARKET_RADIUS_M unless you own it or made an offer",
+        "tags": [
+          "market"
+        ]
+      },
+      "patch": {
+        "operationId": "ListingsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateListingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Edit an active listing (re-moderated)",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/market/listings/{id}/cancel": {
+      "post": {
+        "operationId": "ListingsController_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Take an active listing down",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/market/listings/{id}/sold": {
+      "post": {
+        "operationId": "ListingsController_sold",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mark a listing as sold",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/market/listings/{id}/offers": {
+      "post": {
+        "operationId": "ListingsController_offer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOfferDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Propose a price (or offer to help) from within reach of the listing",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/market/config": {
+      "get": {
+        "operationId": "OffersController_config",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Marketplace limits and switches",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/market/me": {
+      "get": {
+        "operationId": "OffersController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My listings, offers made and received, and orders",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/market/offers/{id}/accept": {
+      "post": {
+        "operationId": "OffersController_accept",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Accept an offer on your listing (reserves the listing)",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/market/offers/{id}/decline": {
+      "post": {
+        "operationId": "OffersController_decline",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Decline an offer on your listing",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/market/offers/{id}/withdraw": {
+      "post": {
+        "operationId": "OffersController_withdraw",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Withdraw your own pending offer",
+        "tags": [
+          "market"
+        ]
+      }
+    },
     "/venues/{id}/messages": {
       "post": {
         "operationId": "MessagesController_send",
@@ -775,6 +1276,45 @@
         "summary": "Report a message for moderator review",
         "tags": [
           "reports"
+        ]
+      }
+    },
+    "/market/listings/{id}/reports": {
+      "post": {
+        "operationId": "ListingReportsController_create",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Report a marketplace listing for moderator review",
+        "tags": [
+          "market"
         ]
       }
     },
@@ -1206,6 +1746,158 @@
           "accuracy"
         ]
       },
+      "CreateListingDto": {
+        "type": "object",
+        "properties": {
+          "lat": {
+            "type": "number",
+            "example": 52.5219
+          },
+          "lng": {
+            "type": "number",
+            "example": 13.4132
+          },
+          "accuracy": {
+            "type": "number",
+            "description": "Horizontal accuracy radius in metres (68% confidence)",
+            "example": 12
+          },
+          "mocked": {
+            "type": "boolean",
+            "description": "True when the OS reports a mock/simulated location"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "OFFER",
+              "REQUEST"
+            ],
+            "description": "OFFER = selling something, REQUEST = asking for paid help"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "FURNITURE",
+              "ELECTRONICS",
+              "CLOTHING",
+              "KIDS",
+              "HOME",
+              "SPORTS",
+              "BOOKS",
+              "SERVICES",
+              "HELP",
+              "OTHER"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 80,
+            "example": "IKEA desk, good condition"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "priceCents": {
+            "type": "number",
+            "description": "Asking price (OFFER) or budget (REQUEST) in cents",
+            "example": 2500
+          },
+          "mediaIds": {
+            "description": "Upload ids from POST /uploads, in display order",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "lat",
+          "lng",
+          "accuracy",
+          "kind",
+          "category",
+          "title",
+          "priceCents"
+        ]
+      },
+      "UpdateListingDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "FURNITURE",
+              "ELECTRONICS",
+              "CLOTHING",
+              "KIDS",
+              "HOME",
+              "SPORTS",
+              "BOOKS",
+              "SERVICES",
+              "HELP",
+              "OTHER"
+            ]
+          },
+          "priceCents": {
+            "type": "number"
+          },
+          "mediaIds": {
+            "description": "Replaces the photo list; ids already on the listing are kept, new upload ids are attached",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CreateOfferDto": {
+        "type": "object",
+        "properties": {
+          "lat": {
+            "type": "number",
+            "example": 52.5219
+          },
+          "lng": {
+            "type": "number",
+            "example": 13.4132
+          },
+          "accuracy": {
+            "type": "number",
+            "description": "Horizontal accuracy radius in metres (68% confidence)",
+            "example": 12
+          },
+          "mocked": {
+            "type": "boolean",
+            "description": "True when the OS reports a mock/simulated location"
+          },
+          "amountCents": {
+            "type": "number",
+            "description": "Proposed price in cents",
+            "example": 2000
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "lat",
+          "lng",
+          "accuracy",
+          "amountCents"
+        ]
+      },
       "SendMessageDto": {
         "type": "object",
         "properties": {
@@ -1296,7 +1988,9 @@
               "SPAM",
               "SCAM",
               "PERSONAL_INFO",
-              "OTHER"
+              "OTHER",
+              "PROHIBITED_ITEM",
+              "OFF_PLATFORM_PAYMENT"
             ]
           },
           "details": {
@@ -1315,6 +2009,7 @@
             "type": "string",
             "enum": [
               "DISMISS",
+              "HIDE_CONTENT",
               "HIDE_MESSAGE",
               "MUTE",
               "SUSPEND"

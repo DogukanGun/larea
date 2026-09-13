@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module.js';
 import { EnforcementModule } from '../enforcement/enforcement.module.js';
+import { MarketModule } from '../market/market.module.js';
 import { MessagesModule } from '../messages/messages.module.js';
 import { AdminController } from './admin.controller.js';
 import { AdminService } from './admin.service.js';
 
 @Module({
-  imports: [AuthModule, MessagesModule, EnforcementModule],
+  imports: [AuthModule, MessagesModule, EnforcementModule, MarketModule],
   controllers: [AdminController],
   providers: [AdminService],
 })

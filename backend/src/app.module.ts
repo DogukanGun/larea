@@ -10,6 +10,7 @@ import { RedisModule } from './infra/redis/redis.module.js';
 import { UsersModule } from './users/users.module.js';
 import { BlocksModule } from './blocks/blocks.module.js';
 import { EnforcementModule } from './enforcement/enforcement.module.js';
+import { MarketModule } from './market/market.module.js';
 import { MediaModule } from './media/media.module.js';
 import { MessagesModule } from './messages/messages.module.js';
 import { ModerationModule } from './moderation/moderation.module.js';
@@ -41,6 +42,7 @@ import { VerificationModule } from './verification/verification.module.js';
     EnforcementModule,
     BlocksModule,
     MediaModule,
+    MarketModule,
     MessagesModule,
     PollsModule,
     ReportsModule,
