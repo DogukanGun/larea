@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MarketScheduler } from '../src/market/market.scheduler.js';
 import { RetentionService } from '../src/retention/retention.service.js';
 import { haversineMeters } from '../src/venues/geo.js';
-import { auth, connectWs, createTestApp, registerUser, type TestContext, type TestUser, uploadImage, verifyAge } from './helpers.js';
+import { auth, connectWs, createTestApp, makeStripeReady, registerUser, type TestContext, type TestUser, uploadImage, verifyAge } from './helpers.js';
 
 interface MarketEvent {
   type: string;
@@ -176,8 +176,14 @@ describe('marketplace listings and offers', () => {
     const buyerMe = await ctx.http().get('/market/me').set(auth(buyer)).expect(200);
     expect(buyerMe.body.offersMade.map((o: { id: string }) => o.id)).toContain(third.body.id);
 
+    // Payments are on in tests: the seller needs a payout account before taking money.
+    const notReady = await ctx.http().post(`/market/offers/${third.body.id}/accept`).set(auth(seller)).expect(403);
+    expect(notReady.body).toMatchObject({ code: 'PAYOUTS_NOT_READY', action: 'stripe_onboarding' });
+    await makeStripeReady(ctx, seller);
     const accepted = await ctx.http().post(`/market/offers/${third.body.id}/accept`).set(auth(seller)).expect(200);
     expect(accepted.body.offer.status).toBe('ACCEPTED');
+    expect(accepted.body.order).toMatchObject({ status: 'AWAITING_PAYMENT', amountCents: 2300, role: 'payee', payer: { id: buyer.id }, payee: { id: seller.id } });
+    expect(accepted.body.offer.orderId).toBe(accepted.body.order.id);
     await wsBuyer.waitFor<MarketEvent>((e) => e.type === 'market_update' && e.kind === 'offer_accepted' && e.offerId === third.body.id);
     expect((await ctx.prisma.listing.findUniqueOrThrow({ where: { id: listingId } })).status).toBe('RESERVED');
     const late = await ctx.http().post(`/market/listings/${listingId}/offers`).set(auth(moderator)).send({ amountCents: 2000, ...fix(near) }).expect(409);
@@ -188,6 +194,10 @@ describe('marketplace listings and offers', () => {
     const detail = await ctx.http().get(`/market/listings/${listingId}`).set(auth(buyer)).expect(200); // still visible to the buyer, no fix needed
     expect(detail.body.myOffer.status).toBe('ACCEPTED');
 
+    // Backing out of the unpaid deal frees the listing; marking it sold by hand still works.
+    const cancelledDeal = await ctx.http().post(`/market/orders/${accepted.body.order.id}/cancel`).set(auth(buyer)).expect(200);
+    expect(cancelledDeal.body).toMatchObject({ status: 'CANCELLED', cancelReason: 'payer_cancelled' });
+    expect((await ctx.prisma.listing.findUniqueOrThrow({ where: { id: listingId } })).status).toBe('ACTIVE');
     const sold = await ctx.http().post(`/market/listings/${listingId}/sold`).set(auth(seller)).expect(200);
     expect(sold.body.status).toBe('SOLD');
     wsSeller.close();
@@ -257,9 +267,13 @@ describe('marketplace listings and offers', () => {
     expect(res.body.kind).toBe('REQUEST');
     const seen = await feed(helper, { kind: 'REQUEST' }).expect(200);
     expect(seen.body.listings.map((l: { id: string }) => l.id)).toContain(res.body.id);
+    const noPayouts = await offer(helper, res.body.id, { amountCents: 2500, note: 'Free on Saturday' }).expect(403);
+    expect(noPayouts.body.code).toBe('PAYOUTS_NOT_READY'); // the helper is the one getting paid
+    await makeStripeReady(ctx, helper);
     const help = await offer(helper, res.body.id, { amountCents: 2500, note: 'Free on Saturday' }).expect(201);
     const accepted = await ctx.http().post(`/market/offers/${help.body.id}/accept`).set(auth(requester)).expect(200);
     expect(accepted.body.offer.status).toBe('ACCEPTED');
+    expect(accepted.body.order).toMatchObject({ payer: { id: requester.id }, payee: { id: helper.id }, role: 'payer' });
   });
 
   it('expires stale offers and listings on the sweep, and purges closed listings with their photos', async () => {

@@ -33,7 +33,7 @@ Moderator account for the admin endpoints: `SEED_MODERATOR_EMAIL=... SEED_MODERA
 
 ## Layout
 
-`src/` is one module per concern: `auth`, `users`, `verification` (platform age signals), `venues`, `media` (photo uploads, sharp pipeline, quarantine), `presence` (join, heartbeat, sweep), `realtime` (WebSocket endpoint and Redis bus), `messages`, `moderation` (OpenAI classifier, rules, strike policy), `enforcement`, `blocks`, `reports`, `admin`, `retention`, `health`. `common/` holds guards, error shape and validation; `infra/` holds Prisma, Redis and logging. `testing/` holds the fake classifier, the fake Overpass client and the `POST /testing/verify-age` shortcut; it is only loaded when `NODE_ENV=test`.
+`src/` is one module per concern: `auth`, `users`, `verification` (platform age signals), `venues`, `media` (photo uploads, sharp pipeline, quarantine), `polls`, `market` (listings, offers, orders, Stripe Connect and webhooks), `presence` (join, heartbeat, sweep), `realtime` (WebSocket endpoint and Redis bus), `messages`, `moderation` (OpenAI classifier, rules, strike policy), `enforcement`, `blocks`, `reports`, `admin`, `retention`, `health`. `common/` holds guards, error shape and validation; `infra/` holds Prisma, Redis and logging. `testing/` holds the fake classifier, the fake Overpass client and the `POST /testing/verify-age` shortcut; it is only loaded when `NODE_ENV=test`.
 
 The realtime protocol is documented in `../docs/realtime-protocol.md`.
 

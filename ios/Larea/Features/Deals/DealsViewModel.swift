@@ -21,10 +21,15 @@ final class DealsViewModel {
         self.realtime = realtime
     }
 
-    /// Offers waiting for the user's answer.
-    var attentionCount: Int { me.offersReceived.filter { $0.status == .pending }.count }
+    var myId: String?
+
+    /// Offers waiting for the user's answer plus deals with a step they must take.
+    var attentionCount: Int { pendingReceived.count + ordersNeedingMe.count }
     var pendingReceived: [Offer] { me.offersReceived.filter { $0.status == .pending } }
-    var acceptedReceived: [Offer] { me.offersReceived.filter { $0.status == .accepted } }
+    var acceptedReceived: [Offer] { me.offersReceived.filter { $0.status == .accepted && $0.orderId == nil } }
+    var ordersNeedingMe: [Order] { me.orders.filter { OrderState.primary(status: $0.status, role: OrderState.role(of: $0, myId: myId)) != nil } }
+    var ordersInProgress: [Order] { me.orders.filter { [.awaitingPayment, .paid, .disputed].contains($0.status) && OrderState.primary(status: $0.status, role: OrderState.role(of: $0, myId: myId)) == nil } }
+    var ordersDone: [Order] { me.orders.filter { [.completed, .cancelled, .refunded].contains($0.status) } }
 
     func start() {
         guard observer == nil else { return }

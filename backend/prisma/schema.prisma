@@ -101,6 +101,15 @@ enum OfferStatus {
   EXPIRED
 }
 
+enum OrderStatus {
+  AWAITING_PAYMENT
+  PAID
+  COMPLETED
+  CANCELLED
+  REFUNDED
+  DISPUTED
+}
+
 enum ReportReason {
   HARASSMENT
   THREAT
@@ -166,6 +175,9 @@ model User {
   pollVotes        PollVote[]
   listings         Listing[]
   offers           Offer[]
+  ordersAsPayer    Order[]               @relation("OrderPayer")
+  ordersAsPayee    Order[]               @relation("OrderPayee")
+  stripeAccount    StripeAccount?
 }
 
 model RefreshToken {
@@ -420,6 +432,7 @@ model Listing {
   owner   User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   images  ListingImage[]
   offers  Offer[]
+  orders  Order[]
   reports Report[]
 
   @@index([status, publicLat, publicLng])
@@ -454,6 +467,7 @@ model Offer {
 
   listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
   offerer User    @relation(fields: [offererId], references: [id], onDelete: Cascade)
+  order   Order?
 
   @@index([listingId, status])
   @@index([offererId, createdAt])
@@ -483,4 +497,76 @@ model Incident {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status, createdAt])
+}
+
+/// A deal after an offer was accepted: the payer pays Larea, the payee is paid out once the
+/// payer's handover code is entered. Financial records; never purged.
+model Order {
+  id                      String      @id @default(uuid())
+  listingId               String
+  offerId                 String      @unique
+  payerId                 String
+  payeeId                 String
+  amountCents             Int
+  feeCents                Int
+  currency                String
+  status                  OrderStatus @default(AWAITING_PAYMENT)
+  cancelReason            String?
+  listingTitle            String
+  handoverCode            String?
+  handoverAttempts        Int         @default(0)
+  handoverLockedUntil     DateTime?
+  stripeCheckoutSessionId String?     @unique
+  stripeCheckoutUrl       String?
+  checkoutExpiresAt       DateTime?
+  checkoutAttempt         Int         @default(0)
+  stripePaymentIntentId   String?     @unique
+  stripeChargeId          String?
+  stripeTransferId        String?
+  stripeRefundId          String?
+  paymentDueAt            DateTime
+  paidAt                  DateTime?
+  approvalDeadlineAt      DateTime?
+  completedAt             DateTime?
+  cancelledAt             DateTime?
+  refundedAt              DateTime?
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  offer   Offer   @relation(fields: [offerId], references: [id], onDelete: Restrict)
+  payer   User    @relation("OrderPayer", fields: [payerId], references: [id], onDelete: Restrict)
+  payee   User    @relation("OrderPayee", fields: [payeeId], references: [id], onDelete: Restrict)
+
+  @@index([status, paidAt])
+  @@index([status, paymentDueAt])
+  @@index([payerId, createdAt])
+  @@index([payeeId, createdAt])
+}
+
+/// The Stripe Connect Express account that receives a user's payouts.
+model StripeAccount {
+  userId           String   @id
+  stripeAccountId  String   @unique
+  payoutsEnabled   Boolean  @default(false)
+  chargesEnabled   Boolean  @default(false)
+  detailsSubmitted Boolean  @default(false)
+  requirementsDue  String[] @default([])
+  syncedAt         DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Webhook deliveries already handled (Stripe retries; Redis may evict).
+model StripeEvent {
+  id          String    @id
+  type        String
+  account     String?
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+  error       String?
+
+  @@index([receivedAt])
 }

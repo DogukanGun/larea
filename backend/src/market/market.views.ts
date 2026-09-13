@@ -62,5 +62,5 @@ export interface MarketMeView {
   listings: ListingView[];
   offersMade: OfferView[];
   offersReceived: OfferView[];
-  orders: unknown[];
+  orders: import('./orders.service.js').OrderView[];
 }

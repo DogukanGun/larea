@@ -1047,6 +1047,181 @@
         ]
       }
     },
+    "/market/orders/{id}": {
+      "get": {
+        "operationId": "OrdersController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "One deal (buyer or seller)",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/market/orders/{id}/checkout": {
+      "post": {
+        "operationId": "OrdersController_checkout",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A Stripe Checkout page for the buyer to pay; reused while it is still open",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/market/orders/{id}/approve": {
+      "post": {
+        "operationId": "OrdersController_approve",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Seller confirms the handover with the buyer's code; the payout is transferred",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/market/orders/{id}/cancel": {
+      "post": {
+        "operationId": "OrdersController_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cancel an unpaid deal, or refund a paid one before the handover",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/market/stripe/account-link": {
+      "post": {
+        "operationId": "StripeConnectController_accountLink",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Start or continue Stripe Express onboarding; open the returned URL in a browser",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/market/stripe/account": {
+      "get": {
+        "operationId": "StripeConnectController_account",
+        "parameters": [
+          {
+            "name": "refresh",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Payout account status (refresh=1 asks Stripe again)",
+        "tags": [
+          "market"
+        ]
+      }
+    },
     "/venues/{id}/messages": {
       "post": {
         "operationId": "MessagesController_send",
@@ -1474,6 +1649,45 @@
         ]
       }
     },
+    "/admin/orders/{id}/resolve": {
+      "post": {
+        "operationId": "AdminController_resolveOrder",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Settle a disputed or stuck marketplace deal: release the payout or refund the buyer",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/incidents/{id}/resolve": {
       "post": {
         "operationId": "AdminController_resolveIncident",
@@ -1580,7 +1794,7 @@
             "description": ""
           }
         },
-        "summary": "Liveness and dependency check",
+        "summary": "Liveness and dependency check (503 when degraded)",
         "tags": [
           "health"
         ]
@@ -1898,6 +2112,19 @@
           "amountCents"
         ]
       },
+      "ApproveOrderDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The six-digit handover code shown on the buyer's phone",
+            "example": "482913"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
       "SendMessageDto": {
         "type": "object",
         "properties": {
@@ -2019,6 +2246,26 @@
             "type": "number",
             "description": "Mute length in hours (MUTE only)",
             "default": 24
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "ResolveOrderDto": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "release",
+              "refund"
+            ],
+            "description": "release = pay the seller, refund = money back to the buyer"
           },
           "note": {
             "type": "string",

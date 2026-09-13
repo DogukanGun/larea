@@ -76,6 +76,19 @@ export const envSchema = z
     MARKET_MAX_LISTINGS: z.coerce.number().int().positive().default(100),
     /** Accounts younger than this cannot list or offer (throwaway-account brake). */
     MARKET_MIN_ACCOUNT_AGE_HOURS: z.coerce.number().min(0).default(24),
+    /** Paid orders nobody approved are refunded after this many days. */
+    MARKET_APPROVAL_DAYS: z.coerce.number().int().positive().default(14),
+    /** Accepted offers must be paid within this window. */
+    MARKET_PAYMENT_WINDOW_HOURS: z.coerce.number().int().positive().default(24),
+    /** URL scheme the apps register for the return from Stripe pages. */
+    MARKET_APP_SCHEME: z.string().regex(/^[a-z][a-z0-9+.-]*$/).default('larea'),
+
+    STRIPE_SECRET_KEY: z.string().optional(),
+    STRIPE_WEBHOOK_SECRET: z.string().optional(),
+    STRIPE_CONNECT_WEBHOOK_SECRET: z.string().optional(),
+    STRIPE_ACCOUNT_COUNTRY: z.string().length(2).default('DE'),
+    /** Production refuses test keys unless this is set (the Hetzner test server sets it). */
+    STRIPE_ALLOW_TEST_MODE: z.preprocess(bool, z.boolean()).default(false),
 
     REPORT_AUTO_HIDE_THRESHOLD: z.coerce.number().int().positive().default(3),
     MESSAGE_RETENTION_DAYS: z.coerce.number().int().positive().default(7),
@@ -98,6 +111,13 @@ export const envSchema = z
     }
     if (env.MARKET_MAX_PRICE_CENTS < env.MARKET_MIN_PRICE_CENTS) {
       ctx.addIssue({ code: 'custom', path: ['MARKET_MAX_PRICE_CENTS'], message: 'must be >= MARKET_MIN_PRICE_CENTS' });
+    }
+    if (env.NODE_ENV === 'production' && env.MARKET_PAYMENTS_ENABLED) {
+      if (!env.STRIPE_SECRET_KEY) ctx.addIssue({ code: 'custom', path: ['STRIPE_SECRET_KEY'], message: 'required when MARKET_PAYMENTS_ENABLED=1' });
+      if (!env.STRIPE_WEBHOOK_SECRET) ctx.addIssue({ code: 'custom', path: ['STRIPE_WEBHOOK_SECRET'], message: 'required when MARKET_PAYMENTS_ENABLED=1' });
+      if (env.STRIPE_SECRET_KEY?.startsWith('sk_test_') && !env.STRIPE_ALLOW_TEST_MODE) {
+        ctx.addIssue({ code: 'custom', path: ['STRIPE_SECRET_KEY'], message: 'test key in production; set STRIPE_ALLOW_TEST_MODE=1 on a test server' });
+      }
     }
   });
 

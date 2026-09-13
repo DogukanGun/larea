@@ -17,6 +17,7 @@ struct ProfileView: View {
             if model == nil { model = ProfileViewModel(api: env.api, sessions: env.sessions) }
             name = env.session.session?.user.displayName ?? ""
             Task { await model?.loadBlocks() }
+            if env.session.session?.user.capabilities.market == true { Task { await model?.loadMarket() } }
         }
     }
 
@@ -56,6 +57,29 @@ struct ProfileView: View {
                 .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 12, trailing: 20))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
+            }
+
+            if env.session.session?.user.capabilities.market == true {
+                Section("Marketplace") {
+                    if env.session.session?.user.capabilities.payments == true {
+                        NavigationLink(value: ProfileRoute.payouts) {
+                            HStack {
+                                Label("Payouts", systemImage: "eurosign.circle").accessibilityIdentifier("profile.payouts")
+                                Spacer()
+                                if let stripe = model.stripe {
+                                    Pill(text: stripe.status.label, style: stripe.status == .ready ? .success : (stripe.status == .pending ? .sunny : .neutral))
+                                }
+                            }
+                        }
+                    }
+                    NavigationLink(value: ProfileRoute.myListings) {
+                        HStack {
+                            Label("My listings", systemImage: "storefront").accessibilityIdentifier("profile.listings")
+                            Spacer()
+                            if let count = model.listingCount { Text("\(count)").foregroundStyle(.secondary) }
+                        }
+                    }
+                }
             }
 
             Section("Blocked people") {

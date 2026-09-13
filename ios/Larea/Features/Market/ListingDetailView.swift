@@ -11,6 +11,7 @@ struct ListingDetailView: View {
     @State private var confirmSold = false
     @State private var confirmCancel = false
     @State private var viewing: ImageAttachment?
+    @State private var showPayouts = false
 
     var body: some View {
         Group {
@@ -44,6 +45,18 @@ struct ListingDetailView: View {
         .alert("Market", isPresented: Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })) {
             Button("OK") { model.notice = nil }
         } message: { Text(model.notice ?? "") }
+        .sheet(isPresented: Binding(get: { model.needsPayouts }, set: { if !$0 { model.needsPayouts = false } })) {
+            NavigationStack {
+                StripeOnboardingView(onReady: { model.needsPayouts = false })
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Later") { model.needsPayouts = false } } }
+            }
+        }
+        .onChange(of: model.openedOrderId) { _, id in
+            guard let id else { return }
+            model.openedOrderId = nil
+            router.tab = .deals
+            router.dealsPath = [.order(id)]
+        }
         .refreshable { await model.load() }
     }
 
@@ -91,6 +104,12 @@ struct ListingDetailView: View {
                 }
                 if !listing.mine, let mine = listing.myOffer {
                     OfferRow(offer: mine, perspective: .offerer, busy: model.busy, onAccept: nil, onDecline: nil, onWithdraw: mine.status == .pending ? { Task { await model.withdraw(mine) } } : nil)
+                    if let orderId = mine.orderId {
+                        SecondaryButton(title: "Go to deal", identifier: "market.listing.deal") {
+                            router.tab = .deals
+                            router.dealsPath = [.order(orderId)]
+                        }
+                    }
                 }
             }
             .padding(20)

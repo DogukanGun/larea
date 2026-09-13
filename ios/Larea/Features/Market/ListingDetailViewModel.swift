@@ -11,6 +11,10 @@ final class ListingDetailViewModel {
     var tooFar = false
     var error: String?
     var notice: String?
+    /// The server refused because the payee has no payout account yet.
+    var needsPayouts = false
+    /// A deal was just opened by accepting an offer.
+    var openedOrderId: String?
 
     private let api: APIClient
     private let location: LocationService
@@ -45,7 +49,7 @@ final class ListingDetailViewModel {
             if let success { notice = success }
             await load()
         } catch {
-            notice = error.userMessage
+            if (error as? APIError)?.code == "PAYOUTS_NOT_READY" { needsPayouts = true } else { notice = error.userMessage }
         }
     }
 
@@ -65,7 +69,11 @@ final class ListingDetailViewModel {
     }
 
     func accept(_ offer: Offer) async {
-        await run({ let _: AcceptOfferResponse = try await api.send(APIRequest(.POST, "market/offers/\(offer.id)/accept")) }, success: "Offer accepted. Arrange the handover with \(offer.offerer.displayName).")
+        await run({
+            let response: AcceptOfferResponse = try await api.send(APIRequest(.POST, "market/offers/\(offer.id)/accept"))
+            openedOrderId = response.order?.id
+        }, success: nil)
+        if openedOrderId == nil, notice == nil, !needsPayouts { notice = "Offer accepted. Arrange the handover with \(offer.offerer.displayName)." }
     }
 
     func decline(_ offer: Offer) async {

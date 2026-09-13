@@ -38,4 +38,23 @@ final class MarketModelsTests: XCTestCase {
         XCTAssertEqual(config.maxPriceCents, 20000)
         XCTAssertEqual(config.radiusM, 2000)
     }
+
+    func testOrderAndStripeStatusDecode() throws {
+        let json = """
+        {"id":"o1","listingId":"l1","listing":{"id":"l1","title":"Desk","kind":"OFFER","priceCents":2500,"thumbUrl":null,"status":"RESERVED"},"offerId":"of1","payer":{"id":"u2","displayName":"ben"},"payee":{"id":"u1","displayName":"anna"},"role":"payee","amountCents":2300,"feeCents":230,"payoutCents":2070,"currency":"eur","status":"PAID","cancelReason":null,"handoverCode":null,"paymentDueAt":"2026-09-14T10:00:00.000Z","paidAt":"2026-09-13T11:00:00.000Z","approvalDeadlineAt":"2026-09-27T11:00:00.000Z","completedAt":null,"cancelledAt":null,"refundedAt":null,"checkout":null,"createdAt":"2026-09-13T10:00:00.000Z"}
+        """
+        let order = try JSONDecoder().decode(Order.self, from: Data(json.utf8))
+        XCTAssertEqual(order.status, .paid)
+        XCTAssertFalse(order.isPayer)
+        XCTAssertEqual(order.counterpart.displayName, "ben")
+        XCTAssertEqual(order.payoutCents, 2070)
+        XCTAssertEqual(OrderState.role(of: order, myId: "u1"), .payee)
+        XCTAssertEqual(try JSONDecoder().decode(Order.self, from: Data(json.replacingOccurrences(of: "\"PAID\"", with: "\"FROZEN\"").utf8)).status, .unknown)
+
+        let ready = try JSONDecoder().decode(StripeAccountStatus.self, from: Data(#"{"connected":true,"payoutsEnabled":true,"detailsSubmitted":true,"requirementsDue":[]}"#.utf8))
+        XCTAssertEqual(ready.status, .ready)
+        let pending = try JSONDecoder().decode(StripeAccountStatus.self, from: Data(#"{"connected":true,"payoutsEnabled":false,"requirementsDue":["external_account"]}"#.utf8))
+        XCTAssertEqual(pending.status, .pending)
+        XCTAssertEqual(try JSONDecoder().decode(StripeAccountStatus.self, from: Data("{}".utf8)).status, .notSetUp)
+    }
 }

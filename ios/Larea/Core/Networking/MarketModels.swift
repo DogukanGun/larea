@@ -218,7 +218,10 @@ struct Offer: Decodable, Sendable, Identifiable, Equatable {
     }
 }
 
-struct AcceptOfferResponse: Decodable, Sendable { let offer: Offer }
+struct AcceptOfferResponse: Decodable, Sendable {
+    let offer: Offer
+    let order: Order?
+}
 
 struct MarketConfig: Decodable, Sendable, Equatable {
     var enabled = true
@@ -251,13 +254,138 @@ struct MarketConfig: Decodable, Sendable, Equatable {
     }
 }
 
+enum OrderStatus: String, Codable, Sendable, Equatable {
+    case awaitingPayment = "AWAITING_PAYMENT", paid = "PAID", completed = "COMPLETED", cancelled = "CANCELLED", refunded = "REFUNDED", disputed = "DISPUTED", unknown
+
+    init(from decoder: Decoder) throws {
+        self = OrderStatus(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unknown
+    }
+
+    var label: String {
+        switch self {
+        case .awaitingPayment: return "Waiting for payment"
+        case .paid: return "Paid"
+        case .completed: return "Done"
+        case .cancelled: return "Cancelled"
+        case .refunded: return "Refunded"
+        case .disputed: return "Under review"
+        case .unknown: return "Deal"
+        }
+    }
+}
+
+struct CheckoutSession: Decodable, Sendable, Equatable {
+    let url: String
+    let expiresAt: String?
+}
+
+struct Order: Decodable, Sendable, Identifiable, Equatable {
+    let id: String
+    let listingId: String
+    let listing: ListingSummary
+    let offerId: String
+    let payer: Author
+    let payee: Author
+    let role: String
+    let amountCents: Int
+    let feeCents: Int
+    let payoutCents: Int
+    let currency: String
+    let status: OrderStatus
+    let cancelReason: String?
+    let handoverCode: String?
+    let paymentDueAt: String
+    let paidAt: String?
+    let approvalDeadlineAt: String?
+    let completedAt: String?
+    let cancelledAt: String?
+    let refundedAt: String?
+    let checkout: CheckoutSession?
+    let createdAt: String
+
+    private enum Keys: String, CodingKey { case id, listingId, listing, offerId, payer, payee, role, amountCents, feeCents, payoutCents, currency, status, cancelReason, handoverCode, paymentDueAt, paidAt, approvalDeadlineAt, completedAt, cancelledAt, refundedAt, checkout, createdAt }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        id = try c.decode(String.self, forKey: .id)
+        listingId = try c.decodeIfPresent(String.self, forKey: .listingId) ?? ""
+        listing = try c.decode(ListingSummary.self, forKey: .listing)
+        offerId = try c.decodeIfPresent(String.self, forKey: .offerId) ?? ""
+        payer = try c.decode(Author.self, forKey: .payer)
+        payee = try c.decode(Author.self, forKey: .payee)
+        role = try c.decodeIfPresent(String.self, forKey: .role) ?? "payer"
+        amountCents = try c.decodeIfPresent(Int.self, forKey: .amountCents) ?? 0
+        feeCents = try c.decodeIfPresent(Int.self, forKey: .feeCents) ?? 0
+        payoutCents = try c.decodeIfPresent(Int.self, forKey: .payoutCents) ?? (amountCents - feeCents)
+        currency = try c.decodeIfPresent(String.self, forKey: .currency) ?? "eur"
+        status = try c.decodeIfPresent(OrderStatus.self, forKey: .status) ?? .unknown
+        cancelReason = try c.decodeIfPresent(String.self, forKey: .cancelReason)
+        handoverCode = try c.decodeIfPresent(String.self, forKey: .handoverCode)
+        paymentDueAt = try c.decodeIfPresent(String.self, forKey: .paymentDueAt) ?? ""
+        paidAt = try c.decodeIfPresent(String.self, forKey: .paidAt)
+        approvalDeadlineAt = try c.decodeIfPresent(String.self, forKey: .approvalDeadlineAt)
+        completedAt = try c.decodeIfPresent(String.self, forKey: .completedAt)
+        cancelledAt = try c.decodeIfPresent(String.self, forKey: .cancelledAt)
+        refundedAt = try c.decodeIfPresent(String.self, forKey: .refundedAt)
+        checkout = try c.decodeIfPresent(CheckoutSession.self, forKey: .checkout)
+        createdAt = try c.decodeIfPresent(String.self, forKey: .createdAt) ?? ""
+    }
+
+    var isPayer: Bool { role == "payer" }
+    var counterpart: Author { isPayer ? payee : payer }
+}
+
+enum StripeStatus: Equatable, Sendable {
+    case notSetUp, pending, ready
+
+    var label: String {
+        switch self {
+        case .notSetUp: return "Not set up"
+        case .pending: return "Almost there"
+        case .ready: return "Ready"
+        }
+    }
+}
+
+struct StripeAccountStatus: Decodable, Sendable, Equatable {
+    var connected = false
+    var payoutsEnabled = false
+    var detailsSubmitted = false
+    var requirementsDue: [String] = []
+
+    private enum Keys: String, CodingKey { case connected, payoutsEnabled, detailsSubmitted, requirementsDue }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        connected = try c.decodeIfPresent(Bool.self, forKey: .connected) ?? false
+        payoutsEnabled = try c.decodeIfPresent(Bool.self, forKey: .payoutsEnabled) ?? false
+        detailsSubmitted = try c.decodeIfPresent(Bool.self, forKey: .detailsSubmitted) ?? false
+        requirementsDue = try c.decodeIfPresent([String].self, forKey: .requirementsDue) ?? []
+    }
+
+    var status: StripeStatus {
+        if payoutsEnabled { return .ready }
+        return connected ? .pending : .notSetUp
+    }
+}
+
+struct StripeAccountLink: Decodable, Sendable {
+    let url: String
+    let expiresAt: String?
+}
+
+struct ApproveOrderRequest: Encodable, Sendable { let code: String }
+
 struct MarketMeResponse: Decodable, Sendable {
     var payoutsEnabled = false
     var listings: [Listing] = []
     var offersMade: [Offer] = []
     var offersReceived: [Offer] = []
+    var orders: [Order] = []
 
-    private enum Keys: String, CodingKey { case payoutsEnabled, listings, offersMade, offersReceived }
+    private enum Keys: String, CodingKey { case payoutsEnabled, listings, offersMade, offersReceived, orders }
 
     init() {}
 
@@ -267,6 +395,7 @@ struct MarketMeResponse: Decodable, Sendable {
         listings = try c.decodeIfPresent([Listing].self, forKey: .listings) ?? []
         offersMade = try c.decodeIfPresent([Offer].self, forKey: .offersMade) ?? []
         offersReceived = try c.decodeIfPresent([Offer].self, forKey: .offersReceived) ?? []
+        orders = try c.decodeIfPresent([Order].self, forKey: .orders) ?? []
     }
 }
 

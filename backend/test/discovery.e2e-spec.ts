@@ -19,6 +19,8 @@ describe('place discovery', () => {
     await verifyAge(ctx, user);
     const keys = await ctx.redis.client.keys('osm:*');
     if (keys.length) await ctx.redis.client.del(...keys);
+    // Fake places pile up across runs and would crowd out the far cell in a capped response.
+    await ctx.prisma.venue.deleteMany({ where: { source: 'osm', sourceRef: { contains: 'fake' } } });
     // Earlier runs may have left members in discovered venues; the sweep does not run in tests.
     await ctx.prisma.membership.updateMany({ where: { status: 'ACTIVE', venue: { source: 'osm' } }, data: { status: 'ENDED', endReason: 'STALE', endedAt: new Date() } });
   });

@@ -73,8 +73,9 @@ export class ListingsService {
     return view;
   }
 
-  offerView(o: { id: string; listingId: string; offererId: string; amountCents: number; note: string | null; status: string; expiresAt: Date; respondedAt: Date | null; createdAt: Date; offerer: { id: string; displayName: string }; listing: { id: string; title: string; kind: 'OFFER' | 'REQUEST'; priceCents: number; status: string; images?: { media: MediaSummary }[] } }, orderId: string | null = null): OfferView {
+  offerView(o: { id: string; listingId: string; offererId: string; amountCents: number; note: string | null; status: string; expiresAt: Date; respondedAt: Date | null; createdAt: Date; offerer: { id: string; displayName: string }; listing: { id: string; title: string; kind: 'OFFER' | 'REQUEST'; priceCents: number; status: string; images?: { media: MediaSummary }[] }; order?: { id: string } | null }): OfferView {
     const thumb = o.listing.images?.[0] ? this.media.toView(o.listing.images[0].media)?.thumbUrl ?? null : null;
+    const orderId = o.order?.id ?? null;
     return {
       id: o.id,
       listingId: o.listingId,
@@ -348,7 +349,7 @@ export class ListingsService {
     const cutoff = new Date(now.getTime() - this.env.MARKET_LISTING_PURGE_DAYS * 86_400_000);
     const flagged = (await this.prisma.incident.findMany({ where: { refId: { not: null } }, select: { refId: true } })).map((i) => i.refId!);
     const rows = await this.prisma.listing.findMany({
-      where: { status: { in: ['CANCELLED', 'EXPIRED', 'REMOVED', 'SOLD'] }, updatedAt: { lt: cutoff }, reports: { none: {} }, id: { notIn: flagged }, offers: { none: { status: 'ACCEPTED' } } },
+      where: { status: { in: ['CANCELLED', 'EXPIRED', 'REMOVED', 'SOLD'] }, updatedAt: { lt: cutoff }, reports: { none: {} }, id: { notIn: flagged }, orders: { none: {} } },
       select: { id: true, images: { select: { mediaId: true } } },
       take: 200,
     });

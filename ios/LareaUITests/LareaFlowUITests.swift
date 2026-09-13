@@ -181,9 +181,10 @@ final class LareaFlowUITests: XCTestCase {
         app.textFields["poll.option.1"].typeText("Ramen")
         app.buttons["poll.submit"].tap()
         XCTAssertTrue(app.staticTexts["Pizza or ramen tonight?"].waitForExistence(timeout: 20), "the poll did not appear in the chat")
-        let firstOption = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'poll.' AND identifier CONTAINS '.option.'")).firstMatch
-        XCTAssertTrue(firstOption.waitForExistence(timeout: 5))
-        firstOption.tap()
+        // Older polls from earlier runs may sit above; the newest poll is the last one in the list.
+        let options = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'poll.' AND identifier CONTAINS '.option.'"))
+        XCTAssertTrue(options.firstMatch.waitForExistence(timeout: 5))
+        options.allElementsBoundByIndex.last!.tap()
         XCTAssertTrue(app.staticTexts["100%"].waitForExistence(timeout: 15), "the vote did not register")
         sleep(1)
         snapshot(app, "08b-poll")

@@ -4,6 +4,7 @@ import type { Env } from '../config/env.js';
 import { RedisService } from '../infra/redis/redis.service.js';
 import { ListingsService } from './listings.service.js';
 import { OffersService } from './offers.service.js';
+import { OrdersService } from './orders.service.js';
 
 const INTERVAL_MS = 15 * 60 * 1000;
 const LOCK_TTL_MS = 14 * 60 * 1000;
@@ -11,6 +12,8 @@ const LOCK_TTL_MS = 14 * 60 * 1000;
 export interface MarketSweepResult {
   offersExpired: number;
   listingsExpired: number;
+  paymentTimeouts: number;
+  autoRefunds: number;
 }
 
 /** Time-based marketplace transitions: offers and listings that ran out. */
@@ -24,6 +27,7 @@ export class MarketScheduler implements OnModuleInit, OnModuleDestroy {
     private readonly redis: RedisService,
     private readonly listings: ListingsService,
     private readonly offers: OffersService,
+    private readonly orders: OrdersService,
   ) {}
 
   onModuleInit(): void {
@@ -42,7 +46,8 @@ export class MarketScheduler implements OnModuleInit, OnModuleDestroy {
   }
 
   async run(now = new Date()): Promise<MarketSweepResult> {
-    const result = { offersExpired: await this.offers.expireDue(now), listingsExpired: await this.listings.expireDue(now) };
+    const orders = await this.orders.sweep(now);
+    const result = { offersExpired: await this.offers.expireDue(now), listingsExpired: await this.listings.expireDue(now), ...orders };
     this.logger.log(result, 'market sweep complete');
     return result;
   }

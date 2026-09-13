@@ -24,7 +24,8 @@ export interface TestContext {
 
 export async function createTestApp(): Promise<TestContext> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-  const app = moduleRef.createNestApplication<NestExpressApplication>({ rawBody: true, logger: false });
+  // TEST_LOGS=1 keeps Nest's logger on to see why a request produced a 500.
+  const app = moduleRef.createNestApplication<NestExpressApplication>({ rawBody: true, logger: process.env.TEST_LOGS ? ['error', 'warn'] : false });
   configureApp(app, app.get<Env>(ENV));
   await app.init();
   await app.listen(0);
@@ -171,4 +172,29 @@ export function binary(res: request.Response, cb: (err: Error | null, body: Buff
   const chunks: Buffer[] = [];
   res.on('data', (chunk: Buffer) => chunks.push(chunk));
   res.on('end', () => cb(null, Buffer.concat(chunks)));
+}
+
+/** Delivers a Stripe event through the real webhook route; the fake client accepts the signature `test`. */
+export function stripeWebhook(
+  ctx: TestContext,
+  type: string,
+  object: Record<string, unknown>,
+  opts: { id?: string; account?: string; connect?: boolean; signature?: string } = {},
+): request.Test {
+  const body = { id: opts.id ?? `evt_${randomUUID()}`, type, account: opts.account, data: { object } };
+  return ctx
+    .http()
+    .post(opts.connect ? '/market/stripe/webhook/connect' : '/market/stripe/webhook')
+    .set('stripe-signature', opts.signature ?? 'test')
+    .set('Content-Type', 'application/json')
+    .send(body);
+}
+
+/** Runs the onboarding link flow and reports the account as payout-ready, like Stripe would after KYC. */
+export async function makeStripeReady(ctx: TestContext, user: TestUser): Promise<string> {
+  await ctx.http().post('/market/stripe/account-link').set(auth(user)).expect(201);
+  const account = await ctx.prisma.stripeAccount.findUniqueOrThrow({ where: { userId: user.id } });
+  const res = await stripeWebhook(ctx, 'account.updated', { id: account.stripeAccountId, payouts_enabled: true, charges_enabled: true, details_submitted: true, requirements: { currently_due: [] } }, { connect: true, account: account.stripeAccountId });
+  if (res.status !== 200) throw new Error(`account.updated failed: ${res.status} ${JSON.stringify(res.body)}`);
+  return account.stripeAccountId;
 }

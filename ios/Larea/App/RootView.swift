@@ -138,7 +138,7 @@ private struct DealsTab: View {
                 .navigationDestination(for: DealsRoute.self) { route in
                     switch route {
                     case let .listing(id): ListingDetailView(listingId: id)
-                    case let .order(id): ContentUnavailableView("Order \(id.prefix(8))", systemImage: "creditcard", description: Text("Payments arrive in the next update."))
+                    case let .order(id): OrderDetailView(orderId: id)
                     }
                 }
         }
@@ -152,6 +152,13 @@ private struct ProfileTab: View {
         @Bindable var router = router
         NavigationStack(path: $router.profilePath) {
             ProfileView()
+                .navigationDestination(for: ProfileRoute.self) { route in
+                    switch route {
+                    case .payouts: StripeOnboardingView()
+                    case .myListings: MyListingsView()
+                    case let .listing(id): ListingDetailView(listingId: id)
+                    }
+                }
         }
     }
 }

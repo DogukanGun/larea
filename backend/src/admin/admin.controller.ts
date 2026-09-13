@@ -6,7 +6,7 @@ import { Roles } from '../common/decorators/roles.decorator.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import type { UserSnapshot } from '../common/types.js';
 import { AdminService } from './admin.service.js';
-import { IncidentsQueryDto, ReportsQueryDto, ResolveReportDto, SuspendUserDto } from './dto/admin.dto.js';
+import { IncidentsQueryDto, ReportsQueryDto, ResolveReportDto, SuspendUserDto, ResolveOrderDto } from './dto/admin.dto.js';
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -38,6 +38,12 @@ export class AdminController {
   @ApiOperation({ summary: 'Resolve a report: dismiss, hide, mute or suspend' })
   resolve(@CurrentUser() moderator: UserSnapshot, @Param('id') id: string, @Body() dto: ResolveReportDto) {
     return this.admin.resolveReport(id, moderator.id, dto);
+  }
+
+  @Post('orders/:id/resolve')
+  @ApiOperation({ summary: 'Settle a disputed or stuck marketplace deal: release the payout or refund the buyer' })
+  resolveOrder(@Param('id') id: string, @Body() dto: ResolveOrderDto) {
+    return this.admin.resolveOrder(id, dto);
   }
 
   @Post('incidents/:id/resolve')

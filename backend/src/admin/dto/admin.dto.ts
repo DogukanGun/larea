@@ -65,3 +65,20 @@ export class IncidentsQueryDto {
   @Max(200)
   limit?: number;
 }
+
+export enum ResolveOrderAction {
+  RELEASE = 'release',
+  REFUND = 'refund',
+}
+
+export class ResolveOrderDto {
+  @ApiProperty({ enum: ResolveOrderAction, description: 'release = pay the seller, refund = money back to the buyer' })
+  @IsEnum(ResolveOrderAction)
+  action!: ResolveOrderAction;
+
+  @ApiPropertyOptional({ maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}

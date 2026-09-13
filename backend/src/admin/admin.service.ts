@@ -4,8 +4,9 @@ import { EnforcementService } from '../enforcement/enforcement.service.js';
 import type { IncidentStatus, ReportStatus } from '../generated/prisma/enums.js';
 import { PrismaService } from '../infra/prisma/prisma.service.js';
 import { ListingsService } from '../market/listings.service.js';
+import { OrdersService } from '../market/orders.service.js';
 import { MessagesService } from '../messages/messages.service.js';
-import { ResolveAction, type ResolveReportDto } from './dto/admin.dto.js';
+import { ResolveAction, type ResolveOrderDto, type ResolveReportDto } from './dto/admin.dto.js';
 
 @Injectable()
 export class AdminService {
@@ -13,8 +14,13 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly messages: MessagesService,
     private readonly listings: ListingsService,
+    private readonly orders: OrdersService,
     private readonly enforcement: EnforcementService,
   ) {}
+
+  resolveOrder(orderId: string, dto: ResolveOrderDto) {
+    return this.orders.resolve(orderId, dto.action);
+  }
 
   listReports(status: ReportStatus = 'OPEN', limit = 50) {
     return this.prisma.report.findMany({

@@ -7,8 +7,8 @@ import type { Env } from '../../config/env.js';
 export const REDACTED_PATHS = [
   'req.headers.authorization',
   'req.headers.cookie',
-  'req.headers["x-auth-client"]',
-  'req.headers["x-hmac-signature"]',
+  'req.headers["stripe-signature"]',
+  'req.body.code',
   'req.body.password',
   'req.body.refreshToken',
   'req.body.lat',

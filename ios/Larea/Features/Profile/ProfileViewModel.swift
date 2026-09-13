@@ -5,6 +5,8 @@ import Observation
 @Observable
 final class ProfileViewModel {
     var blocks: [BlockedUser] = []
+    var stripe: StripeAccountStatus?
+    var listingCount: Int?
     var busy = false
     var message: String?
 
@@ -14,6 +16,11 @@ final class ProfileViewModel {
     init(api: APIClient, sessions: SessionRepository) {
         self.api = api
         self.sessions = sessions
+    }
+
+    func loadMarket() async {
+        stripe = try? await api.send(APIRequest(.GET, "market/stripe/account"))
+        if let me: MarketMeResponse = try? await api.send(APIRequest(.GET, "market/me")) { listingCount = me.listings.count }
     }
 
     func loadBlocks() async {
