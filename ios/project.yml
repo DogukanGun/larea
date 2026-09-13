@@ -37,6 +37,8 @@ targets:
         NSLocationWhenInUseUsageDescription: "Your location is used to determine which nearby chats you can join. Your exact location is not shown to other users."
         NSLocationTemporaryUsageDescriptionDictionary:
           PreciseLocation: "Larea needs your precise location to confirm that you are at this place."
+        NSPhotoLibraryUsageDescription: "Larea shows your photo library so you can share a photo in a chat or add photos to a listing."
+        NSCameraUsageDescription: "Larea uses the camera to take a photo for a chat message or a listing."
         CFBundleURLTypes:
           - CFBundleURLName: com.dogukangundogan.larea
             CFBundleURLSchemes: [larea]

@@ -3,9 +3,13 @@ import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
+import sharp from 'sharp';
 import request from 'supertest';
 import WebSocket from 'ws';
 import { AppModule } from '../src/app.module.js';
+import { configureApp } from '../src/app.setup.js';
+import { ENV } from '../src/config/config.module.js';
+import type { Env } from '../src/config/env.js';
 import { PrismaService } from '../src/infra/prisma/prisma.service.js';
 import { RedisService } from '../src/infra/redis/redis.service.js';
 
@@ -21,6 +25,7 @@ export interface TestContext {
 export async function createTestApp(): Promise<TestContext> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({ rawBody: true, logger: false });
+  configureApp(app, app.get<Env>(ENV));
   await app.init();
   await app.listen(0);
   const address = app.getHttpServer().address() as { port: number };
@@ -136,4 +141,34 @@ export function expectWsRejected(ctx: TestContext, headers: Record<string, strin
     socket.once('open', () => reject(new Error('expected the upgrade to be rejected')));
     socket.once('error', (err) => reject(err));
   });
+}
+
+/** A synthetic photo, JPEG by default, optionally with an EXIF orientation. */
+export async function makeJpeg(opts: { width?: number; height?: number; orientation?: number; format?: 'jpeg' | 'png' } = {}): Promise<Buffer> {
+  const img = sharp({ create: { width: opts.width ?? 640, height: opts.height ?? 480, channels: 3, background: { r: 200, g: 90, b: 40 } } })
+    .withMetadata({ orientation: opts.orientation, exif: { IFD0: { ImageDescription: 'test photo' } } });
+  return opts.format === 'png' ? img.png().toBuffer() : img.jpeg().toBuffer();
+}
+
+/** Uploads a photo through the real endpoint and returns the media view. */
+export async function uploadImage(
+  ctx: TestContext,
+  user: TestUser,
+  buffer?: Buffer,
+  file: { filename?: string; contentType?: string } = {},
+): Promise<{ id: string; url: string; thumbUrl: string; width: number; height: number }> {
+  const res = await ctx
+    .http()
+    .post('/uploads')
+    .set(auth(user))
+    .attach('file', buffer ?? (await makeJpeg()), { filename: file.filename ?? 'photo.jpg', contentType: file.contentType ?? 'image/jpeg' });
+  if (res.status !== 201) throw new Error(`upload failed: ${res.status} ${JSON.stringify(res.body)}`);
+  return res.body;
+}
+
+/** supertest parser that keeps binary bodies as a Buffer. */
+export function binary(res: request.Response, cb: (err: Error | null, body: Buffer) => void): void {
+  const chunks: Buffer[] = [];
+  res.on('data', (chunk: Buffer) => chunks.push(chunk));
+  res.on('end', () => cb(null, Buffer.concat(chunks)));
 }

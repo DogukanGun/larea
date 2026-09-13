@@ -7,6 +7,9 @@ struct APIRequest: Sendable {
     var query: [URLQueryItem] = []
     var body: Data? = nil
     var authenticated: Bool = true
+    /// Defaults to JSON when a body is present.
+    var contentType: String? = nil
+    var timeout: TimeInterval = 20
 
     init(_ method: Method, _ path: String, query: [URLQueryItem] = [], authenticated: Bool = true) {
         self.method = method
@@ -19,6 +22,17 @@ struct APIRequest: Sendable {
         self.init(method, path, authenticated: authenticated)
         self.body = try JSONEncoder().encode(body)
     }
+
+    /// A file upload; gets a generous timeout because photos go over mobile networks.
+    init(_ method: Method, _ path: String, multipart parts: [MultipartPart], authenticated: Bool = true) {
+        self.init(method, path, authenticated: authenticated)
+        let boundary = Multipart.boundary()
+        body = Multipart.encode(parts, boundary: boundary)
+        contentType = "multipart/form-data; boundary=\(boundary)"
+        timeout = 90
+    }
+
+    var isUpload: Bool { contentType?.hasPrefix("multipart/") == true }
 }
 
 /// Typed access to the REST API. On 401 it refreshes the access token once and retries.
@@ -71,15 +85,20 @@ actor APIClient {
         if !request.query.isEmpty { components.queryItems = request.query }
         var urlRequest = URLRequest(url: components.url!)
         urlRequest.httpMethod = request.method.rawValue
-        urlRequest.timeoutInterval = 20
+        urlRequest.timeoutInterval = request.timeout
         urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
-        if let body = request.body {
-            urlRequest.httpBody = body
-            urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if request.body != nil {
+            urlRequest.setValue(request.contentType ?? "application/json", forHTTPHeaderField: "Content-Type")
         }
         if let token { urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         do {
-            let (data, response) = try await session.data(for: urlRequest)
+            let (data, response): (Data, URLResponse)
+            if let body = request.body, request.isUpload {
+                (data, response) = try await session.upload(for: urlRequest, from: body)
+            } else {
+                urlRequest.httpBody = request.body
+                (data, response) = try await session.data(for: urlRequest)
+            }
             guard let http = response as? HTTPURLResponse else { throw APIError.network(underlying: "not http") }
             return (data, http)
         } catch let error as APIError {

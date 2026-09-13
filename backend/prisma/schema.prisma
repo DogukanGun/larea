@@ -36,6 +36,19 @@ enum MembershipEndReason {
   REPLACED
 }
 
+enum MessageKind {
+  TEXT
+  IMAGE
+  POLL
+}
+
+enum MediaStatus {
+  UPLOADED
+  ATTACHED
+  REJECTED
+  QUARANTINED
+}
+
 enum MessageStatus {
   APPROVED
   CENSORED
@@ -111,6 +124,7 @@ model User {
   blocksMade           Block[]               @relation("Blocker")
   blocksReceived       Block[]               @relation("Blocked")
   incidents            Incident[]
+  media            Media[]
 }
 
 model RefreshToken {
@@ -197,14 +211,39 @@ model Message {
   categories       String[]      @default([])
   moderationReason String?
   clientKey        String
+  kind             MessageKind   @default(TEXT)
+  mediaId          String?       @unique
   createdAt        DateTime      @default(now())
 
   venue   Venue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
   author  User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  media   Media? @relation(fields: [mediaId], references: [id], onDelete: SetNull)
   reports Report[]
 
   @@unique([authorId, clientKey])
   @@index([venueId, createdAt])
+}
+
+/// An uploaded image (re-encoded JPEG + thumbnail on the uploads volume). Rows outlive the
+/// files only briefly: rejected and purged media lose their files at once.
+model Media {
+  id          String      @id
+  ownerId     String
+  status      MediaStatus @default(UPLOADED)
+  width       Int
+  height      Int
+  bytes       Int
+  thumbWidth  Int
+  thumbHeight Int
+  sha256      String
+  createdAt   DateTime    @default(now())
+  attachedAt  DateTime?
+
+  owner   User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  message Message?
+
+  @@index([ownerId, createdAt])
+  @@index([status, createdAt])
 }
 
 model Violation {

@@ -1,4 +1,6 @@
 export const MAX_MESSAGE_LENGTH = 500;
+/** Photo captions are short. */
+export const MAX_CAPTION_LENGTH = 200;
 
 // eslint-disable-next-line no-control-regex -- stripping control characters is the point
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;

@@ -21,11 +21,24 @@ export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
 export type RemovalReason = 'user_left' | 'out_of_range' | 'stale' | 'unconfirmed' | 'venue_closed' | 'suspended' | 'replaced';
 
+export interface ChatImageView {
+  url: string;
+  thumbUrl: string;
+  width: number;
+  height: number;
+}
+
 export interface ChatMessageView {
   id: string;
   venueId: string;
   author: { id: string; displayName: string };
+  /** TEXT unless stated; clients that do not know a kind show `text`. */
+  kind: 'TEXT' | 'IMAGE' | 'POLL';
+  /** The message, or a readable fallback ("[Photo]", "Poll: …") for other kinds. */
   text: string;
+  /** IMAGE only: the caption, possibly empty. */
+  caption?: string;
+  image?: ChatImageView;
   status: 'APPROVED' | 'CENSORED';
   createdAt: string;
 }

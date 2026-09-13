@@ -7,6 +7,8 @@ const defaultCodes: Record<number, string> = {
   403: 'FORBIDDEN',
   404: 'NOT_FOUND',
   409: 'CONFLICT',
+  413: 'PAYLOAD_TOO_LARGE',
+  415: 'UNSUPPORTED_MEDIA',
   422: 'UNPROCESSABLE',
   429: 'RATE_LIMITED',
   503: 'UNAVAILABLE',

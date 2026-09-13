@@ -7,6 +7,7 @@ import {
   type ModerationCategory,
   type ModerationClient,
   type ModerationDecision,
+  type ModerationImage,
   type ModerationInput,
   ModerationUnavailableError,
   REFUSAL_DECISION,
@@ -43,6 +44,19 @@ const FLOOR_RULES: { category: FloorCategory; threshold: number; severity: 2 | 3
   { category: 'violence', threshold: 0.9, severity: 2, mapped: 'violence' },
 ];
 
+/**
+ * Extra floor for photos. The moderation endpoint scores images only for sexual, self-harm
+ * and violence, and Larea allows no nudity at all, so the bar is lower than for text.
+ */
+const IMAGE_FLOOR_RULES: typeof FLOOR_RULES = [
+  { category: 'sexual', threshold: 0.9, severity: 3, mapped: 'sexual' },
+  { category: 'sexual', threshold: 0.5, severity: 2, mapped: 'sexual' },
+  { category: 'violence/graphic', threshold: 0.7, severity: 2, mapped: 'violence' },
+  { category: 'self-harm', threshold: 0.7, severity: 3, mapped: 'dangerous' },
+];
+
+const dataUrl = (image: ModerationImage) => `data:${image.mimeType};base64,${image.data.toString('base64')}`;
+
 /** Schema handed to the model: same fields as the decision, without numeric bounds (validated afterwards). */
 const verdictFormat = z.object({
   decision: z.enum(['allow', 'warn', 'censor', 'block']),
@@ -77,7 +91,7 @@ export class OpenAIModerationClient implements ModerationClient {
 
   async evaluate(input: ModerationInput): Promise<ModerationDecision> {
     try {
-      const floor = await this.floor(input.text);
+      const floor = await this.floor(input.text, input.image);
       if (floor.decision) return floor.decision;
       return await this.verdict(input, floor.scores);
     } catch (error) {
@@ -87,15 +101,21 @@ export class OpenAIModerationClient implements ModerationClient {
     }
   }
 
-  private async floor(text: string): Promise<{ decision: ModerationDecision | null; scores: Partial<Record<FloorCategory, number>> }> {
-    const response = await this.client.moderations.create({ model: this.moderationModel, input: text });
+  private async floor(
+    text: string,
+    image?: ModerationImage,
+  ): Promise<{ decision: ModerationDecision | null; scores: Partial<Record<FloorCategory, number>> }> {
+    const input: string | OpenAI.Moderations.ModerationMultiModalInput[] = image
+      ? [...(text ? [{ type: 'text' as const, text }] : []), { type: 'image_url' as const, image_url: { url: dataUrl(image) } }]
+      : text;
+    const response = await this.client.moderations.create({ model: this.moderationModel, input });
     const result = response.results[0];
     if (!result) throw new ModerationUnavailableError('openai: empty moderation result');
     const scores: Partial<Record<FloorCategory, number>> = {};
     for (const [category, score] of Object.entries(result.category_scores) as [FloorCategory, number | null][]) {
       if (typeof score === 'number' && score >= 0.2) scores[category] = Number(score.toFixed(3));
     }
-    for (const rule of FLOOR_RULES) {
+    for (const rule of image ? [...IMAGE_FLOOR_RULES, ...FLOOR_RULES] : FLOOR_RULES) {
       const score = result.category_scores[rule.category];
       if (typeof score === 'number' && score >= rule.threshold) {
         return {
@@ -111,17 +131,20 @@ export class OpenAIModerationClient implements ModerationClient {
     const payload = {
       kind: input.kind,
       candidate: input.text,
+      hasImage: Boolean(input.image),
       venue: input.venueName ?? null,
       recentMessages: input.recent ?? [],
       signals: input.signals,
       moderationEndpointScores: floorScores,
     };
+    const userContent: OpenAI.Responses.ResponseInputContent[] = [{ type: 'input_text', text: JSON.stringify(payload) }];
+    if (input.image) userContent.push({ type: 'input_image', image_url: dataUrl(input.image), detail: 'low' });
     const response = await this.client.responses.parse({
       model: this.model,
       reasoning: { effort: 'low' },
       input: [
         { role: 'system', content: MODERATION_POLICY_PROMPT },
-        { role: 'user', content: JSON.stringify(payload) },
+        { role: 'user', content: userContent },
       ],
       text: { format: zodTextFormat(verdictFormat, 'moderation_verdict') },
       max_output_tokens: 1500,

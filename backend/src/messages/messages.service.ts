@@ -6,17 +6,21 @@ import { EnforcementService } from '../enforcement/enforcement.service.js';
 import type { Message, MessageStatus } from '../generated/prisma/client.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../infra/prisma/prisma.service.js';
+import { MEDIA_SUMMARY_SELECT, MediaService, type MediaSummary } from '../media/media.service.js';
 import { ModerationService } from '../moderation/moderation.service.js';
 import { type ModerationDecision, ModerationUnavailableError } from '../moderation/moderation.types.js';
-import { normalizeText } from '../moderation/rules.js';
+import { MAX_CAPTION_LENGTH, normalizeText } from '../moderation/rules.js';
 import { PresenceService } from '../presence/presence.service.js';
 import type { ChatMessageView } from '../realtime/protocol.js';
 import { RealtimeBus } from '../realtime/realtime.bus.js';
 import { VenuesService } from '../venues/venues.service.js';
 
 export const GUIDELINES_NOTICE = "This message doesn't meet our community guidelines.";
+export const PHOTO_GUIDELINES_NOTICE = "This photo doesn't meet our community guidelines.";
 const CENSOR_NOTICE = 'Part of your message was masked because it goes against the community guidelines.';
 const WARN_NOTICE = 'Please keep it respectful. Repeated issues can limit your ability to chat.';
+/** What clients that predate photo messages show. */
+export const IMAGE_FALLBACK_TEXT = '[Photo]';
 
 export interface SendResult {
   status: 'approved' | 'censored' | 'blocked';
@@ -24,17 +28,15 @@ export interface SendResult {
   notice?: string;
 }
 
-type MessageWithAuthor = Message & { author: { id: string; displayName: string } };
+export type MessageRow = Message & { author: { id: string; displayName: string }; media?: MediaSummary | null };
 
-export function toChatMessageView(m: MessageWithAuthor): ChatMessageView {
-  return {
-    id: m.id,
-    venueId: m.venueId,
-    author: { id: m.author.id, displayName: m.author.displayName },
-    text: m.text,
-    status: m.status === 'CENSORED' ? 'CENSORED' : 'APPROVED',
-    createdAt: m.createdAt.toISOString(),
-  };
+export const MESSAGE_INCLUDE = { author: { select: { id: true, displayName: true } }, media: { select: MEDIA_SUMMARY_SELECT } } as const;
+
+export interface SendInput {
+  kind?: 'TEXT' | 'IMAGE';
+  text?: string;
+  mediaId?: string;
+  clientKey: string;
 }
 
 @Injectable()
@@ -48,40 +50,59 @@ export class MessagesService {
     private readonly moderation: ModerationService,
     private readonly enforcement: EnforcementService,
     private readonly blocks: BlocksService,
+    private readonly media: MediaService,
     private readonly bus: RealtimeBus,
   ) {}
 
-  async send(user: UserSnapshot, venueId: string, input: { text: string; clientKey: string }): Promise<SendResult> {
+  toView(m: MessageRow): ChatMessageView {
+    const view: ChatMessageView = {
+      id: m.id,
+      venueId: m.venueId,
+      author: { id: m.author.id, displayName: m.author.displayName },
+      kind: m.kind,
+      text: m.text,
+      status: m.status === 'CENSORED' ? 'CENSORED' : 'APPROVED',
+      createdAt: m.createdAt.toISOString(),
+    };
+    if (m.kind === 'IMAGE') {
+      view.caption = m.text === IMAGE_FALLBACK_TEXT ? '' : m.text;
+      const image = this.media.toView(m.media);
+      if (image) view.image = image;
+    }
+    return view;
+  }
+
+  async send(user: UserSnapshot, venueId: string, input: SendInput): Promise<SendResult> {
     const existing = await this.prisma.message.findUnique({
       where: { authorId_clientKey: { authorId: user.id, clientKey: input.clientKey } },
-      include: { author: { select: { id: true, displayName: true } } },
+      include: MESSAGE_INCLUDE,
     });
     if (existing) return this.toSendResult(existing);
 
-    const text = normalizeText(input.text);
-    if (!text) throw badRequest('VALIDATION', 'Message cannot be empty.');
-    if (user.mutedUntil && new Date(user.mutedUntil).getTime() > Date.now()) {
-      throw forbidden('MUTED', "You can't send messages right now.", { mutedUntil: user.mutedUntil });
-    }
-    if (!(await this.presence.isEligibleToPost(user.id, venueId))) {
-      throw forbidden('NOT_PRESENT', 'You need to be at this location to chat.');
-    }
+    const isImage = input.kind === 'IMAGE';
+    const text = normalizeText(input.text ?? '');
+    if (!isImage && !text) throw badRequest('VALIDATION', 'Message cannot be empty.');
+    if (isImage && text.length > MAX_CAPTION_LENGTH) throw badRequest('VALIDATION', `Captions can be at most ${MAX_CAPTION_LENGTH} characters.`);
+    if (isImage && !input.mediaId) throw badRequest('VALIDATION', 'Photo messages need a mediaId.');
+    await this.assertCanPost(user, venueId);
 
     const venue = await this.venues.getActive(venueId);
-    const recentRows = await this.prisma.message.findMany({
-      where: { venueId, status: { in: ['APPROVED', 'CENSORED'] } },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-      include: { author: { select: { displayName: true } } },
-    });
-    const recent = recentRows.reverse().map((m) => ({ displayName: m.author.displayName, text: m.text }));
+    const recent = await this.recentContext(venueId);
+    const media = isImage ? await this.media.findUploaded(input.mediaId!, user.id) : null;
 
     let decision: ModerationDecision;
     try {
-      decision = await this.moderation.evaluateMessage({ text, venueName: venue.name, recent });
+      decision = media
+        ? await this.moderation.evaluateImageMessage({
+            text,
+            venueName: venue.name,
+            recent,
+            image: { data: await this.media.renditionForModeration(media.id), mimeType: 'image/jpeg' },
+          })
+        : await this.moderation.evaluateMessage({ text, venueName: venue.name, recent });
     } catch (err) {
       if (err instanceof ModerationUnavailableError) {
-        throw unavailable('MODERATION_UNAVAILABLE', "We couldn't check your message. Please try again.");
+        throw unavailable('MODERATION_UNAVAILABLE', media ? "We couldn't check your photo. Please try again." : "We couldn't check your message. Please try again.");
       }
       throw err;
     }
@@ -90,13 +111,20 @@ export class MessagesService {
       decision.decision === 'block' ? 'BLOCKED' : decision.decision === 'censor' && decision.censoredText ? 'CENSORED' : 'APPROVED';
     const shownText = status === 'CENSORED' ? normalizeText(decision.censoredText!) || text : text;
 
-    let message: MessageWithAuthor;
+    if (media) {
+      if (status === 'BLOCKED') await this.media.reject(media.id);
+      else await this.media.claim(media.id, user.id);
+    }
+
+    let message: MessageRow;
     try {
       message = await this.prisma.message.create({
         data: {
           venueId,
           authorId: user.id,
-          text: shownText,
+          kind: media ? 'IMAGE' : 'TEXT',
+          mediaId: media?.id ?? null,
+          text: media ? shownText || IMAGE_FALLBACK_TEXT : shownText,
           originalText: status === 'CENSORED' ? text : status === 'BLOCKED' ? text : null,
           status,
           severity: decision.severity,
@@ -104,13 +132,13 @@ export class MessagesService {
           moderationReason: decision.reason,
           clientKey: input.clientKey,
         },
-        include: { author: { select: { id: true, displayName: true } } },
+        include: MESSAGE_INCLUDE,
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         const raced = await this.prisma.message.findUniqueOrThrow({
           where: { authorId_clientKey: { authorId: user.id, clientKey: input.clientKey } },
-          include: { author: { select: { id: true, displayName: true } } },
+          include: MESSAGE_INCLUDE,
         });
         return this.toSendResult(raced);
       }
@@ -122,25 +150,50 @@ export class MessagesService {
       await this.enforcement.recordViolation(user.id, { messageId: message.id, severity, categories: decision.categories });
     }
 
-    if (status !== 'BLOCKED') {
-      const excluded = await this.blocks.blockset(user.id);
-      this.bus.toVenue(venueId, { type: 'message', message: toChatMessageView(message) }, excluded);
-    }
+    if (status !== 'BLOCKED') await this.publish(user.id, message);
     return this.toSendResult(message, decision);
   }
 
-  private toSendResult(message: MessageWithAuthor, decision?: ModerationDecision): SendResult {
+  /** Mute and presence checks shared by every kind of post. */
+  async assertCanPost(user: UserSnapshot, venueId: string): Promise<void> {
+    if (user.mutedUntil && new Date(user.mutedUntil).getTime() > Date.now()) {
+      throw forbidden('MUTED', "You can't send messages right now.", { mutedUntil: user.mutedUntil });
+    }
+    if (!(await this.presence.isEligibleToPost(user.id, venueId))) {
+      throw forbidden('NOT_PRESENT', 'You need to be at this location to chat.');
+    }
+  }
+
+  /** The last few visible messages, oldest first, as classifier context. */
+  async recentContext(venueId: string): Promise<{ displayName: string; text: string }[]> {
+    const rows = await this.prisma.message.findMany({
+      where: { venueId, status: { in: ['APPROVED', 'CENSORED'] } },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      include: { author: { select: { displayName: true } } },
+    });
+    return rows.reverse().map((m) => ({ displayName: m.author.displayName, text: m.text }));
+  }
+
+  /** Fans a visible message out to the room, skipping blocked pairs. */
+  async publish(authorId: string, message: MessageRow): Promise<void> {
+    const excluded = await this.blocks.blockset(authorId);
+    this.bus.toVenue(message.venueId, { type: 'message', message: this.toView(message) }, excluded);
+  }
+
+  toSendResult(message: MessageRow, decision?: ModerationDecision): SendResult {
+    const blockedNotice = message.kind === 'IMAGE' ? PHOTO_GUIDELINES_NOTICE : GUIDELINES_NOTICE;
     switch (message.status) {
       case 'BLOCKED':
-        return { status: 'blocked', notice: GUIDELINES_NOTICE };
+        return { status: 'blocked', notice: blockedNotice };
       case 'CENSORED':
-        return { status: 'censored', message: toChatMessageView(message), notice: CENSOR_NOTICE };
+        return { status: 'censored', message: this.toView(message), notice: CENSOR_NOTICE };
       case 'HIDDEN':
-        return { status: 'blocked', notice: GUIDELINES_NOTICE };
+        return { status: 'blocked', notice: blockedNotice };
       default:
         return {
           status: 'approved',
-          message: toChatMessageView(message),
+          message: this.toView(message),
           notice: decision?.decision === 'warn' ? WARN_NOTICE : undefined,
         };
     }
@@ -160,17 +213,17 @@ export class MessagesService {
         where: { venueId, status: { in: visible }, authorId: { notIn: excluded }, createdAt: { gt: anchor.createdAt } },
         orderBy: { createdAt: 'asc' },
         take: limit,
-        include: { author: { select: { id: true, displayName: true } } },
+        include: MESSAGE_INCLUDE,
       });
-      return rows.map(toChatMessageView);
+      return rows.map((m) => this.toView(m));
     }
     const rows = await this.prisma.message.findMany({
       where: { venueId, status: { in: visible }, authorId: { notIn: excluded } },
       orderBy: { createdAt: 'desc' },
       take: limit,
-      include: { author: { select: { id: true, displayName: true } } },
+      include: MESSAGE_INCLUDE,
     });
-    return rows.reverse().map(toChatMessageView);
+    return rows.reverse().map((m) => this.toView(m));
   }
 
   /** Hides a visible message for everyone (moderator action or report threshold). */
@@ -180,6 +233,7 @@ export class MessagesService {
       data: { status: 'HIDDEN' },
     });
     if (updated.length === 0) return false;
+    if (updated[0].mediaId) await this.media.quarantine(updated[0].mediaId);
     this.bus.toVenue(updated[0].venueId, { type: 'message_hidden', venueId: updated[0].venueId, messageId });
     return true;
   }

@@ -44,6 +44,18 @@ export const envSchema = z
     OVERPASS_CONTACT: z.string().default('dogukangundogan5@gmail.com'),
     OSM_CACHE_TTL_SEC: z.coerce.number().int().positive().default(86_400),
 
+    /** Uploaded images: where the files live and how big they may be. */
+    MEDIA_DIR: z.string().min(1).default('./var/uploads'),
+    MEDIA_MAX_BYTES: z.coerce.number().int().min(1).max(52_428_800).default(10_485_760),
+    /** Public base for served files; defaults to `${PUBLIC_URL}/media`. */
+    MEDIA_PUBLIC_URL: z.url().optional(),
+    MEDIA_MAX_PX: z.coerce.number().int().min(320).max(4096).default(1600),
+    MEDIA_THUMB_PX: z.coerce.number().int().min(100).max(1024).default(400),
+    /** Uploads never attached to anything are deleted after this. */
+    MEDIA_ORPHAN_TTL_MIN: z.coerce.number().int().positive().default(60),
+    /** Uploads are refused when the volume has less free space than this. */
+    MEDIA_DISK_RESERVE_BYTES: z.coerce.number().int().min(0).default(1_073_741_824),
+
     /** Neighbourhood marketplace. Unset = on everywhere except production. */
     MARKET_ENABLED: z.preprocess((v) => (v === undefined || v === '' ? undefined : bool(v)), z.boolean().optional()),
     /** Stripe payments inside the marketplace; needs the Stripe keys in production. */
@@ -87,7 +99,7 @@ export function marketEnabled(env: Pick<Env, 'MARKET_ENABLED' | 'NODE_ENV'>): bo
 export function featuresOf(env: Pick<Env, 'MARKET_ENABLED' | 'MARKET_PAYMENTS_ENABLED' | 'NODE_ENV'>): Features {
   const market = marketEnabled(env);
   // images and polls flip to true when their milestones ship; market/payments are configuration.
-  return { images: false, polls: false, market, payments: market && env.MARKET_PAYMENTS_ENABLED };
+  return { images: true, polls: false, market, payments: market && env.MARKET_PAYMENTS_ENABLED };
 }
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {

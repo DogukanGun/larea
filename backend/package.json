@@ -44,6 +44,7 @@
     "class-validator": "^0.15.1",
     "ioredis": "^6.0.0",
     "jose": "^6.2.12",
+    "multer": "^2.3.0",
     "nestjs-pino": "^5.1.0",
     "openai": "^7.10.0",
     "pg": "^8.23.0",
@@ -52,6 +53,7 @@
     "prisma": "^7.10.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "sharp": "^0.35.4",
     "ws": "^8.21.3",
     "zod": "^4.5.4"
   },
@@ -61,6 +63,7 @@
     "@nestjs/schematics": "^12.0.0",
     "@nestjs/testing": "^12.0.1",
     "@types/express": "^5.0.0",
+    "@types/multer": "^2.2.0",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.0.0",

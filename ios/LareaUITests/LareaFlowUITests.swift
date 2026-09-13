@@ -28,7 +28,7 @@ final class LareaFlowUITests: XCTestCase {
         }
         print("UI test backend override:", app.launchEnvironment["LAREA_API_BASE_URL"] ?? "none (localhost)")
         // Age check: the backend's test-only shortcut instead of the iOS age-range prompt.
-        app.launchArguments += ["-LareaTestAgePass", "1", "-LareaResetState", "1"]
+        app.launchArguments += ["-LareaTestAgePass", "1", "-LareaResetState", "1", "-LareaTestSeedImage", "1"]
         app.launch()
 
         snapshot(app, "01-welcome")
@@ -112,6 +112,27 @@ final class LareaFlowUITests: XCTestCase {
         composer.typeText("Anyone want to get food?")
         app.buttons["chat.send"].tap()
         XCTAssertTrue(app.staticTexts["Anyone want to get food?"].waitForExistence(timeout: 15))
+        // A photo message: the debug menu injects a picture drawn at runtime (the photo picker is out of process).
+        app.buttons["chat.attach"].tap()
+        let seedById = app.descendants(matching: .any).matching(identifier: "chat.attach.seed").firstMatch
+        let seedByLabel = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Use test image'")).firstMatch
+        var seed = seedById
+        if !seed.waitForExistence(timeout: 5) { seed = seedByLabel }
+        if !seed.waitForExistence(timeout: 5) {
+            let tree = XCTAttachment(string: app.debugDescription)
+            tree.name = "element-tree-attach-menu"
+            tree.lifetime = .keepAlways
+            add(tree)
+            XCTFail("the attachment menu did not open")
+        }
+        seed.tap()
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "chat.attach.preview").firstMatch.waitForExistence(timeout: 5))
+        app.buttons["chat.send"].tap()
+        let photo = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'chat.image.'")).firstMatch
+        XCTAssertTrue(photo.waitForExistence(timeout: 30), "the photo message did not appear")
+        sleep(1)
+        snapshot(app, "08a-chat-photo")
+
         composer.tap()
         composer.typeText("this is damn good")
         app.buttons["chat.send"].tap()

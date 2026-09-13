@@ -249,18 +249,93 @@ struct Author: Codable, Sendable, Equatable {
     let displayName: String
 }
 
+enum MessageKind: String, Codable, Sendable, Equatable {
+    case text = "TEXT"
+    case image = "IMAGE"
+    case poll = "POLL"
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = MessageKind(rawValue: raw) ?? .unknown
+    }
+}
+
+/// A served photo: the upload response and the `image` of a chat message share this shape.
+struct ImageAttachment: Codable, Sendable, Equatable, Identifiable {
+    var id: String
+    let url: String
+    let thumbUrl: String
+    let width: Int
+    let height: Int
+
+    var aspectRatio: CGFloat { height > 0 ? CGFloat(width) / CGFloat(height) : 1 }
+    var fullURL: URL? { Backend.mediaURL(url) }
+    var thumbURL: URL? { Backend.mediaURL(thumbUrl) }
+
+    private enum Keys: String, CodingKey { case id, url, thumbUrl, width, height }
+
+    init(id: String, url: String, thumbUrl: String, width: Int, height: Int) {
+        self.id = id
+        self.url = url
+        self.thumbUrl = thumbUrl
+        self.width = width
+        self.height = height
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        url = try c.decode(String.self, forKey: .url)
+        thumbUrl = try c.decodeIfPresent(String.self, forKey: .thumbUrl) ?? url
+        width = try c.decodeIfPresent(Int.self, forKey: .width) ?? 0
+        height = try c.decodeIfPresent(Int.self, forKey: .height) ?? 0
+        id = try c.decodeIfPresent(String.self, forKey: .id) ?? url
+    }
+}
+
 struct ChatMessage: Codable, Sendable, Identifiable, Equatable {
     let id: String
     let venueId: String
     let author: Author
+    /// Always readable: the message, or a fallback for kinds this build does not render.
     let text: String
     let status: String
     let createdAt: String
+    var kind: MessageKind = .text
+    var caption: String? = nil
+    var image: ImageAttachment? = nil
+}
+
+extension ChatMessage {
+    private enum Keys: String, CodingKey { case id, venueId, author, text, status, createdAt, kind, caption, image }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        id = try c.decode(String.self, forKey: .id)
+        venueId = try c.decode(String.self, forKey: .venueId)
+        author = try c.decode(Author.self, forKey: .author)
+        text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
+        status = try c.decodeIfPresent(String.self, forKey: .status) ?? "APPROVED"
+        createdAt = try c.decode(String.self, forKey: .createdAt)
+        kind = try c.decodeIfPresent(MessageKind.self, forKey: .kind) ?? .text
+        caption = try c.decodeIfPresent(String.self, forKey: .caption)
+        image = try c.decodeIfPresent(ImageAttachment.self, forKey: .image)
+    }
 }
 
 struct SendMessageRequest: Encodable, Sendable {
-    let text: String
+    var kind: String? = nil
+    var text: String? = nil
+    var mediaId: String? = nil
     let clientKey: String
+
+    static func text(_ text: String, clientKey: String) -> SendMessageRequest {
+        SendMessageRequest(text: text, clientKey: clientKey)
+    }
+
+    static func image(mediaId: String, caption: String?, clientKey: String) -> SendMessageRequest {
+        SendMessageRequest(kind: "IMAGE", text: caption.flatMap { $0.isEmpty ? nil : $0 }, mediaId: mediaId, clientKey: clientKey)
+    }
 }
 
 struct SendResult: Decodable, Sendable {

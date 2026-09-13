@@ -35,6 +35,12 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-larea}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-larea}
       REDIS_URL: redis://redis:6379
       PORT: "3000"
+      MEDIA_DIR: /data/uploads
+    volumes:
+      - uploads:/data/uploads
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,6 +59,10 @@ services:
       - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+      - uploads:/srv/media:ro
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
     depends_on:
       - backend
     restart: unless-stopped
@@ -61,3 +71,5 @@ volumes:
   postgres-data:
   caddy-data:
   caddy-config:
+  # Uploaded images, written by the API and served read-only by Caddy.
+  uploads:

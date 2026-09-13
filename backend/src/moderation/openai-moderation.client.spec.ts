@@ -63,8 +63,9 @@ describe('OpenAIModerationClient', () => {
       if (url.endsWith('/moderations')) return { body: moderationResponse({ harassment: 0.31, violence: 0.05 }) };
       expect(body.model).toBe('gpt-5-nano');
       expect(body.text).toMatchObject({ format: { type: 'json_schema', name: 'moderation_verdict', strict: true } });
-      const user = (body.input as { role: string; content: string }[]).find((m) => m.role === 'user');
-      expect(JSON.parse(user!.content)).toMatchObject({ candidate: 'this is damn good', venue: 'Main Square', moderationEndpointScores: { harassment: 0.31 } });
+      const user = (body.input as { role: string; content: { type: string; text?: string }[] }[]).find((m) => m.role === 'user');
+      expect(user!.content).toHaveLength(1); // no image part for text
+      expect(JSON.parse(user!.content[0].text!)).toMatchObject({ candidate: 'this is damn good', hasImage: false, venue: 'Main Square', moderationEndpointScores: { harassment: 0.31 } });
       return {
         body: verdictResponse({
           type: 'output_text',
@@ -105,5 +106,30 @@ describe('OpenAIModerationClient', () => {
       return { body: { ...verdictResponse({ type: 'output_text', text: '' }, 'incomplete'), output: [] } };
     });
     await expect(incomplete.client.evaluate(base)).rejects.toBeInstanceOf(ModerationUnavailableError);
+  });
+
+  it('sends photos to both stages and applies the stricter image floor', async () => {
+    const image = { data: Buffer.from('jpegbytes'), mimeType: 'image/jpeg' as const };
+    const seen: Record<string, unknown>[] = [];
+    const { client } = makeClient((url, body) => {
+      seen.push(body);
+      if (url.endsWith('/moderations')) return { body: moderationResponse({ sexual: 0.1, violence: 0.05 }) };
+      return { body: verdictResponse({ type: 'output_text', text: JSON.stringify({ decision: 'allow', severity: 0, categories: [], censoredText: null, reason: 'ok' }) }) };
+    });
+    const decision = await client.evaluate({ ...base, text: 'lunch', image });
+    expect(decision.decision).toBe('allow');
+    const floorInput = seen[0].input as { type: string; text?: string; image_url?: { url: string } }[];
+    expect(floorInput.map((p) => p.type)).toEqual(['text', 'image_url']);
+    expect(floorInput[1].image_url?.url.startsWith('data:image/jpeg;base64,')).toBe(true);
+    const user = (seen[1].input as { role: string; content: { type: string }[] }[]).find((m) => m.role === 'user')!;
+    expect(user.content.map((p) => p.type)).toEqual(['input_text', 'input_image']);
+
+    const { client: strict, calls } = makeClient((url) => {
+      if (url.endsWith('/moderations')) return { body: moderationResponse({ sexual: 0.6 }) };
+      throw new Error('verdict must not run');
+    });
+    const blocked = await strict.evaluate({ ...base, text: '', image });
+    expect(blocked).toMatchObject({ decision: 'block', severity: 2, categories: ['sexual'] });
+    expect(calls).toEqual(['/v1/moderations']);
   });
 });

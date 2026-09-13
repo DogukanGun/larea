@@ -73,4 +73,35 @@ final class NearbyModelsTests: XCTestCase {
         XCTAssertEqual(response.members.map(\.displayName), ["anna", "ben"])
         XCTAssertEqual(response.count, 3)
     }
+
+    func testImageMessagesDecodeAndLegacyMessagesDefaultToText() throws {
+        let image = """
+        {"id":"m1","venueId":"v1","author":{"id":"u1","displayName":"anna"},"kind":"IMAGE","text":"lunch","caption":"lunch","image":{"url":"https://x/media/a.jpg","thumbUrl":"https://x/media/a_thumb.jpg","width":1600,"height":1200},"status":"APPROVED","createdAt":"2026-09-13T10:00:00.000Z"}
+        """
+        let message = try JSONDecoder().decode(ChatMessage.self, from: Data(image.utf8))
+        XCTAssertEqual(message.kind, .image)
+        XCTAssertEqual(message.caption, "lunch")
+        XCTAssertEqual(message.image?.width, 1600)
+        XCTAssertEqual(Double(message.image?.aspectRatio ?? 0), 4.0 / 3.0, accuracy: 0.001)
+        XCTAssertEqual(message.image?.id, "https://x/media/a.jpg")
+
+        let legacy = """
+        {"id":"m2","venueId":"v1","author":{"id":"u1","displayName":"anna"},"text":"hi","status":"APPROVED","createdAt":"2026-09-13T10:00:00.000Z"}
+        """
+        let old = try JSONDecoder().decode(ChatMessage.self, from: Data(legacy.utf8))
+        XCTAssertEqual(old.kind, .text)
+        XCTAssertNil(old.image)
+
+        let future = """
+        {"id":"m3","venueId":"v1","author":{"id":"u1","displayName":"anna"},"kind":"HOLOGRAM","text":"[Hologram]","status":"APPROVED","createdAt":"2026-09-13T10:00:00.000Z"}
+        """
+        XCTAssertEqual(try JSONDecoder().decode(ChatMessage.self, from: Data(future.utf8)).kind, .unknown)
+    }
+
+    func testSendRequestsOmitAbsentFields() throws {
+        let text = try JSONSerialization.jsonObject(with: JSONEncoder().encode(SendMessageRequest.text("hi", clientKey: "k1"))) as! [String: Any]
+        XCTAssertEqual(text as NSDictionary, ["text": "hi", "clientKey": "k1"] as NSDictionary)
+        let image = try JSONSerialization.jsonObject(with: JSONEncoder().encode(SendMessageRequest.image(mediaId: "abc", caption: "", clientKey: "k2"))) as! [String: Any]
+        XCTAssertEqual(image as NSDictionary, ["kind": "IMAGE", "mediaId": "abc", "clientKey": "k2"] as NSDictionary)
+    }
 }

@@ -3,6 +3,7 @@ import { InjectEnv } from '../config/inject-env.js';
 import type { Env } from '../config/env.js';
 import { PrismaService } from '../infra/prisma/prisma.service.js';
 import { RedisService } from '../infra/redis/redis.service.js';
+import { MediaService } from '../media/media.service.js';
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const LOCK_TTL_MS = 23 * 60 * 60 * 1000;
@@ -13,6 +14,8 @@ export interface RetentionResult {
   memberships: number;
   violations: number;
   tokens: number;
+  /** Media files removed: with purged messages, orphaned uploads, old records. */
+  media: number;
 }
 
 /**
@@ -28,6 +31,7 @@ export class RetentionService implements OnModuleInit, OnModuleDestroy {
     @InjectEnv() private readonly env: Env,
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly media: MediaService,
   ) {}
 
   onModuleInit(): void {
@@ -54,10 +58,15 @@ export class RetentionService implements OnModuleInit, OnModuleDestroy {
       await this.prisma.incident.findMany({ where: { refId: { not: null } }, select: { refId: true } })
     ).map((i) => i.refId!);
 
-    const messages = await this.prisma.message.deleteMany({
-      where: { createdAt: { lt: messageCutoff }, reports: { none: {} }, id: { notIn: flaggedIds } },
-    });
-    const flaggedMessages = await this.prisma.message.deleteMany({ where: { createdAt: { lt: recordCutoff } } });
+    const ordinary = { createdAt: { lt: messageCutoff }, reports: { none: {} }, id: { notIn: flaggedIds } };
+    const flagged = { createdAt: { lt: recordCutoff } };
+    // Files first: once the rows are gone nothing points at them any more.
+    const purgedMedia = (
+      await this.prisma.message.findMany({ where: { OR: [ordinary, flagged], mediaId: { not: null } }, select: { mediaId: true } })
+    ).map((m) => m.mediaId!);
+    const messages = await this.prisma.message.deleteMany({ where: ordinary });
+    const flaggedMessages = await this.prisma.message.deleteMany({ where: flagged });
+    const media = (await this.media.purge(purgedMedia)) + (await this.media.sweepOrphans(now));
     const memberships = await this.prisma.membership.deleteMany({ where: { status: 'ENDED', endedAt: { lt: days(30) } } });
     const violations = await this.prisma.violation.deleteMany({ where: { createdAt: { lt: recordCutoff } } });
     const tokens = await this.prisma.refreshToken.deleteMany({
@@ -70,6 +79,7 @@ export class RetentionService implements OnModuleInit, OnModuleDestroy {
       memberships: memberships.count,
       violations: violations.count,
       tokens: tokens.count,
+      media,
     };
     this.logger.log(result, 'retention run complete');
     return result;

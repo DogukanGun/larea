@@ -44,7 +44,8 @@ Coordinates sent in heartbeats are used for the eligibility check only. They are
 
 ```json
 {"type":"ack","reqId":"1","ok":true,"data":{...}}
-{"type":"message","message":{"id":"…","venueId":"…","author":{"id":"…","displayName":"anna_k"},"text":"Anyone want to get food?","status":"APPROVED","createdAt":"2026-09-06T21:00:00.000Z"}}
+{"type":"message","message":{"id":"…","venueId":"…","author":{"id":"…","displayName":"anna_k"},"kind":"TEXT","text":"Anyone want to get food?","status":"APPROVED","createdAt":"2026-09-06T21:00:00.000Z"}}
+{"type":"message","message":{"id":"…","venueId":"…","author":{"id":"…","displayName":"anna_k"},"kind":"IMAGE","text":"lunch spot","caption":"lunch spot","image":{"url":"https://…/media/<id>.jpg","thumbUrl":"https://…/media/<id>_thumb.jpg","width":1600,"height":1200},"status":"APPROVED","createdAt":"…"}}
 {"type":"message_hidden","venueId":"…","messageId":"…"}
 {"type":"removed","venueId":"…","reason":"out_of_range","message":"You're no longer near this location. You've been removed from the chat."}
 {"type":"enforcement","kind":"mute","until":"2026-09-06T22:00:00.000Z","message":"…"}
@@ -67,3 +68,7 @@ Coordinates sent in heartbeats are used for the eligibility check only. They are
 
 Messages from users you blocked, or who blocked you, are never delivered to you (filtered server-side).
 Messages are sent over REST (`POST /venues/:id/messages`) so the moderation verdict comes back synchronously; approved messages then arrive on this socket for everyone in the room, including the sender.
+
+### Message kinds
+
+`message.kind` is `TEXT` (default), `IMAGE` or `POLL`. `text` is always present and readable: for photos it is the caption or `[Photo]`, for polls `Poll: <question>`, so clients that predate a kind can still render something. `IMAGE` messages add `caption` (possibly empty) and `image {url, thumbUrl, width, height}`; the files are served under `/media/` with immutable caching and disappear when the message is hidden or purged. Photos are uploaded first with `POST /uploads` (multipart field `file`, JPEG/PNG/WebP, re-encoded and stripped of metadata on the server) and then sent as `{ "kind": "IMAGE", "mediaId": "…", "text": "optional caption", "clientKey": "…" }`. Clients must ignore event types and message kinds they do not know.

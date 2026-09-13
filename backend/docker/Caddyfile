@@ -1,10 +1,35 @@
 {$DOMAIN} {
 	encode zstd gzip
-	# WebSocket upgrades are proxied transparently.
-	reverse_proxy backend:3000
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options nosniff
 		-Server
+	}
+
+	# Uploaded images straight from the shared volume: random ids, no directory listing.
+	handle_path /media/* {
+		root * /srv/media/public
+		header Cache-Control "public, max-age=31536000, immutable"
+		header X-Robots-Tag "noindex"
+		file_server {
+			hide *.tmp
+		}
+	}
+
+	# Photo uploads are the only requests allowed a large body.
+	@uploads path /uploads
+	handle @uploads {
+		request_body {
+			max_size 12MB
+		}
+		reverse_proxy backend:3000
+	}
+
+	# Everything else: REST, Stripe webhooks and WebSocket upgrades on /ws.
+	handle {
+		request_body {
+			max_size 1MB
+		}
+		reverse_proxy backend:3000
 	}
 }

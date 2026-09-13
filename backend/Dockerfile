@@ -20,7 +20,8 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/prisma.config.ts /app/package.json ./
 COPY docker/entrypoint.sh ./entrypoint.sh
-RUN chmod +x ./entrypoint.sh && adduser -D -u 10001 app && chown -R app /app
+RUN chmod +x ./entrypoint.sh && adduser -D -u 10001 app && chown -R app /app \
+  && mkdir -p /data/uploads/public /data/uploads/quarantine && chown -R app /data/uploads
 USER app
 EXPOSE 3000
 ENTRYPOINT ["./entrypoint.sh"]

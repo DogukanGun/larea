@@ -1,9 +1,12 @@
 import Foundation
 import Observation
+import UIKit
 
 struct PendingMessage: Identifiable, Equatable {
     let id: String
     let text: String
+    var image: UIImage? = nil
+    var uploading = false
 }
 
 @MainActor
@@ -26,6 +29,7 @@ final class ChatViewModel {
     var myUserId: String?
 
     private let api: APIClient
+    private let uploader: ImageUploader
     private let realtime: RealtimeClient
     private let location: LocationService
     private let session: SessionStore
@@ -38,6 +42,7 @@ final class ChatViewModel {
     init(venueId: String, api: APIClient, realtime: RealtimeClient, location: LocationService, session: SessionStore) {
         self.venueId = venueId
         self.api = api
+        self.uploader = ImageUploader(api: api)
         self.realtime = realtime
         self.location = location
         self.session = session
@@ -181,24 +186,49 @@ final class ChatViewModel {
         pending.append(item)
         defer { pending.removeAll { $0.id == item.id } }
         do {
-            let result: SendResult = try await api.send(try APIRequest(.POST, "venues/\(venueId)/messages", json: SendMessageRequest(text: trimmed, clientKey: item.id)))
-            if let message = result.message { add(message) }
-            switch result.status {
-            case "blocked": addNotice(.blocked, result.notice ?? "This message doesn't meet our community guidelines.")
-            case "censored":
-                sentCount += 1
-                addNotice(.censored, result.notice ?? "Part of your message was masked.")
-            default:
-                sentCount += 1
-                if let notice = result.notice { addNotice(.warned, notice) }
-            }
+            let result: SendResult = try await api.send(try APIRequest(.POST, "venues/\(venueId)/messages", json: SendMessageRequest.text(trimmed, clientKey: item.id)))
+            apply(result, blockedFallback: "This message doesn't meet our community guidelines.")
         } catch {
-            if let apiError = error as? APIError {
-                if apiError.code == "MUTED", let iso = apiError.mutedUntil { mutedUntil = ISO8601DateFormatter.larea.date(from: iso) }
-                if apiError.code == "NOT_PRESENT" { await rejoin() }
-            }
-            notice = error.userMessage
+            await handleSendError(error)
         }
+    }
+
+    /// Uploads the photo (already downsized on the device), then sends it like any other message.
+    func sendImage(_ data: Data, caption: String?) async {
+        let trimmed = caption?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let item = PendingMessage(id: UUID().uuidString, text: trimmed, image: UIImage(data: data), uploading: true)
+        pending.append(item)
+        defer { pending.removeAll { $0.id == item.id } }
+        do {
+            let media = try await uploader.upload(data)
+            if let index = pending.firstIndex(where: { $0.id == item.id }) { pending[index].uploading = false }
+            let body = SendMessageRequest.image(mediaId: media.id, caption: trimmed, clientKey: item.id)
+            let result: SendResult = try await api.send(try APIRequest(.POST, "venues/\(venueId)/messages", json: body))
+            apply(result, blockedFallback: "This photo doesn't meet our community guidelines.")
+        } catch {
+            await handleSendError(error)
+        }
+    }
+
+    private func apply(_ result: SendResult, blockedFallback: String) {
+        if let message = result.message { add(message) }
+        switch result.status {
+        case "blocked": addNotice(.blocked, result.notice ?? blockedFallback)
+        case "censored":
+            sentCount += 1
+            addNotice(.censored, result.notice ?? "Part of your message was masked.")
+        default:
+            sentCount += 1
+            if let notice = result.notice { addNotice(.warned, notice) }
+        }
+    }
+
+    private func handleSendError(_ error: Error) async {
+        if let apiError = error as? APIError {
+            if apiError.code == "MUTED", let iso = apiError.mutedUntil { mutedUntil = ISO8601DateFormatter.larea.date(from: iso) }
+            if apiError.code == "NOT_PRESENT" { await rejoin() }
+        }
+        notice = error.userMessage
     }
 
     func report(_ message: ChatMessage, reason: String) async {

@@ -10,6 +10,7 @@ import { RedisModule } from './infra/redis/redis.module.js';
 import { UsersModule } from './users/users.module.js';
 import { BlocksModule } from './blocks/blocks.module.js';
 import { EnforcementModule } from './enforcement/enforcement.module.js';
+import { MediaModule } from './media/media.module.js';
 import { MessagesModule } from './messages/messages.module.js';
 import { ModerationModule } from './moderation/moderation.module.js';
 import { PresenceModule } from './presence/presence.module.js';
@@ -38,6 +39,7 @@ import { VerificationModule } from './verification/verification.module.js';
     RealtimeModule,
     EnforcementModule,
     BlocksModule,
+    MediaModule,
     MessagesModule,
     ReportsModule,
     AdminModule,

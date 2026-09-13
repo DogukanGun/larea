@@ -8,6 +8,15 @@ export class FakeModerationClient implements ModerationClient {
   async evaluate(input: ModerationInput): Promise<ModerationDecision> {
     const text = input.text.toLowerCase();
     if (text.includes('[unavailable]')) throw new ModerationUnavailableError('fake outage');
+    if (input.image) {
+      if (text.includes('[image-unavailable]')) throw new ModerationUnavailableError('fake image outage');
+      if (text.includes('[image-block3]')) {
+        return { decision: 'block', severity: 3, categories: ['location_exposure'], censoredText: null, reason: 'photo singles out a person nearby' };
+      }
+      if (text.includes('[image-block]')) {
+        return { decision: 'block', severity: 2, categories: ['sexual'], censoredText: null, reason: 'photo violates the guidelines' };
+      }
+    }
 
     if (input.kind === 'display_name') {
       const bad = /admin|moderator|police|polizei|\[block\]/i.test(input.text);

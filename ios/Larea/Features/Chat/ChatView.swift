@@ -1,4 +1,11 @@
+import PhotosUI
 import SwiftUI
+
+/// A photo picked for the next message, kept until it is sent or removed.
+struct ComposerAttachment: Equatable {
+    let data: Data
+    let preview: UIImage
+}
 
 /// The chat screen. The view model is owned by `AppRouter` so the session (heartbeat, socket
 /// subscription) survives tab switches; the tab bar is hidden while the chat is on screen.
@@ -12,6 +19,8 @@ struct ChatView: View {
     @State private var blocking: ChatMessage?
     @State private var scrolledId: String?
     @State private var showMembers = false
+    @State private var attachment: ComposerAttachment?
+    @State private var viewing: ImageAttachment?
 
     var body: some View {
         content(model)
@@ -84,12 +93,19 @@ struct ChatView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            Composer(draft: $draft, disabled: model.isMuted) {
+            Composer(draft: $draft, attachment: $attachment, disabled: model.isMuted) {
                 let text = draft
+                let photo = attachment
                 draft = ""
-                Task { await model.send(text) }
+                attachment = nil
+                if let photo {
+                    Task { await model.sendImage(photo.data, caption: text) }
+                } else {
+                    Task { await model.send(text) }
+                }
             }
         }
+        .fullScreenCover(item: $viewing) { image in ImageViewer(image: image) }
         .animation(reduceMotion ? nil : .spring(duration: 0.35), value: rows.map(\.id))
         .onChange(of: rows.count) { _, _ in
             // Pin to the newest row only when the user is already near the bottom.
@@ -141,7 +157,7 @@ struct ChatView: View {
                 .frame(maxWidth: .infinity)
         case let .message(message, position, showHeader):
             let mine = message.author.id == model.myUserId
-            MessageRow(message: message, position: position, showHeader: showHeader && !mine, mine: mine)
+            MessageRow(message: message, position: position, showHeader: showHeader && !mine, mine: mine, onOpenImage: { viewing = $0 })
                 .contextMenu {
                     if !mine {
                         Button("Report", systemImage: "flag") { reporting = message }
@@ -152,8 +168,14 @@ struct ChatView: View {
         case let .notice(notice):
             NoticeChip(notice: notice).padding(.vertical, Spacing.xs)
         case let .pending(pending):
-            Bubble(text: pending.text, mine: true, position: .single, pending: true)
-                .frame(maxWidth: .infinity, alignment: .trailing)
+            Group {
+                if let preview = pending.image {
+                    ImageBubble(image: nil, preview: preview, caption: pending.text, mine: true, position: .single, pending: true, uploading: pending.uploading, onOpen: {})
+                } else {
+                    Bubble(text: pending.text, mine: true, position: .single, pending: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 
@@ -168,6 +190,7 @@ private struct MessageRow: View {
     let position: GroupPosition
     let showHeader: Bool
     let mine: Bool
+    var onOpenImage: (ImageAttachment) -> Void = { _ in }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: Spacing.s) {
@@ -187,15 +210,20 @@ private struct MessageRow: View {
                         .foregroundStyle(Avatar.palette[Avatar.colorIndex(for: message.author.id)])
                         .padding(.leading, 6)
                 }
-                Bubble(text: message.text, mine: mine, position: position, pending: false)
+                if message.kind == .image, let image = message.image {
+                    ImageBubble(image: image, preview: nil, caption: message.caption ?? "", mine: mine, position: position, pending: false, uploading: false, onOpen: { onOpenImage(image) })
+                        .accessibilityIdentifier("chat.image.\(message.id)")
+                } else {
+                    Bubble(text: message.text, mine: mine, position: position, pending: false)
+                }
                 if position == .single || position == .last {
                     Text(Self.time(message.createdAt)).font(.caption2).foregroundStyle(.tertiary).padding(.horizontal, 6)
                 }
             }
             if !mine { Spacer(minLength: 60) }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(message.author.displayName): \(message.text)")
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(message.kind == .image ? "Photo from \(message.author.displayName). \(message.caption ?? "")" : "\(message.author.displayName): \(message.text)")
     }
 
     private static func time(_ iso: String) -> String {
@@ -204,13 +232,9 @@ private struct MessageRow: View {
     }
 }
 
-private struct Bubble: View {
-    let text: String
-    let mine: Bool
-    let position: GroupPosition
-    let pending: Bool
-
-    private var shape: UnevenRoundedRectangle {
+/// Bubble corners: tight where a bubble joins the previous/next one from the same author.
+enum BubbleShape {
+    static func shape(mine: Bool, position: GroupPosition) -> UnevenRoundedRectangle {
         let big = Radius.bubble
         let small: CGFloat = 6
         let joinedAbove = position == .middle || position == .last
@@ -223,6 +247,13 @@ private struct Bubble: View {
             style: .continuous
         )
     }
+}
+
+private struct Bubble: View {
+    let text: String
+    let mine: Bool
+    let position: GroupPosition
+    let pending: Bool
 
     var body: some View {
         Text(text)
@@ -230,9 +261,60 @@ private struct Bubble: View {
             .foregroundStyle(mine ? Color.white : Color.primary)
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
-            .background(mine ? Color.brandPrimary : Color(.secondarySystemGroupedBackground), in: shape)
+            .background(mine ? Color.brandPrimary : Color(.secondarySystemGroupedBackground), in: BubbleShape.shape(mine: mine, position: position))
             .opacity(pending ? 0.55 : 1)
             .frame(maxWidth: 300, alignment: mine ? .trailing : .leading)
+    }
+}
+
+/// A photo message: thumbnail sized by its aspect ratio, optional caption, tap to view.
+struct ImageBubble: View {
+    let image: ImageAttachment?
+    let preview: UIImage?
+    let caption: String
+    let mine: Bool
+    let position: GroupPosition
+    let pending: Bool
+    let uploading: Bool
+    let onOpen: () -> Void
+
+    private static let width: CGFloat = 240
+
+    private var height: CGFloat {
+        let ratio = image?.aspectRatio ?? (preview.map { $0.size.width / max(1, $0.size.height) } ?? 1.33)
+        return min(320, max(120, Self.width / max(0.2, ratio)))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack {
+                if let preview {
+                    Image(uiImage: preview).resizable().aspectRatio(contentMode: .fill)
+                } else {
+                    RemoteImage(url: image?.thumbURL)
+                }
+                if uploading {
+                    ProgressView().tint(.white).padding(10).background(.black.opacity(0.35), in: Circle())
+                }
+            }
+            .frame(width: Self.width, height: height)
+            .clipped()
+            if !caption.isEmpty {
+                Text(caption)
+                    .font(.body)
+                    .foregroundStyle(mine ? Color.white : Color.primary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(width: Self.width, alignment: .leading)
+            }
+        }
+        .background(mine ? Color.brandPrimary : Color(.secondarySystemGroupedBackground))
+        .clipShape(BubbleShape.shape(mine: mine, position: position))
+        .opacity(pending ? 0.55 : 1)
+        .onTapGesture { if image != nil { onOpen() } }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(caption.isEmpty ? "Photo" : "Photo, \(caption)")
+        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -262,15 +344,70 @@ private struct NoticeChip: View {
 
 private struct Composer: View {
     @Binding var draft: String
+    @Binding var attachment: ComposerAttachment?
     let disabled: Bool
     let onSend: () -> Void
+    @State private var pickedItem: PhotosPickerItem?
+    @State private var showLibrary = false
+    @State private var showCamera = false
+    @State private var pickError: String?
 
-    private var canSend: Bool { !disabled && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var canSend: Bool { !disabled && (attachment != nil || !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
+    private var placeholder: String {
+        if disabled { return "You're muted for now" }
+        return attachment == nil ? "Say something…" : "Add a caption…"
+    }
 
     var body: some View {
         VStack(spacing: 4) {
+            if let attachment {
+                HStack(alignment: .top) {
+                    Image(uiImage: attachment.preview)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 72, height: 72)
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+                        .accessibilityIdentifier("chat.attach.preview")
+                        .overlay(alignment: .topTrailing) {
+                            Button { self.attachment = nil } label: {
+                                Image(systemName: "xmark")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 22, height: 22)
+                                    .background(.black.opacity(0.6), in: Circle())
+                            }
+                            .padding(4)
+                            .accessibilityLabel("Remove photo")
+                            .accessibilityIdentifier("chat.attach.remove")
+                        }
+                    Spacer()
+                }
+            }
             HStack(alignment: .bottom, spacing: Spacing.s) {
-                TextField(disabled ? "You're muted for now" : "Say something…", text: $draft, axis: .vertical)
+                Menu {
+                    Button("Photo library", systemImage: "photo.on.rectangle") { showLibrary = true }
+                        .accessibilityIdentifier("chat.attach.library")
+                    if CameraPicker.isAvailable {
+                        Button("Take photo", systemImage: "camera") { showCamera = true }
+                            .accessibilityIdentifier("chat.attach.camera")
+                    }
+                    #if DEBUG
+                    if UserDefaults.standard.bool(forKey: "LareaTestSeedImage") {
+                        Button("Use test image", systemImage: "testtube.2") { attach(Self.testImage()) }
+                            .accessibilityIdentifier("chat.attach.seed")
+                    }
+                    #endif
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(Color.brandPrimary)
+                        .frame(width: 38, height: 38)
+                        .background(Color.brandTint, in: Circle())
+                }
+                .disabled(disabled)
+                .accessibilityLabel("Add photo")
+                .accessibilityIdentifier("chat.attach")
+                TextField(placeholder, text: $draft, axis: .vertical)
                     .lineLimit(1...5)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 9)
@@ -299,7 +436,43 @@ private struct Composer: View {
         .padding(.horizontal, Spacing.m)
         .padding(.vertical, Spacing.s)
         .background(.bar)
+        .photosPicker(isPresented: $showLibrary, selection: $pickedItem, matching: .images, photoLibrary: .shared())
+        .onChange(of: pickedItem) { _, item in
+            guard let item else { return }
+            pickedItem = nil
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self) { attach(data) } else { pickError = "That photo couldn't be read." }
+            }
+        }
+        .fullScreenCover(isPresented: $showCamera) { CameraPicker(onImage: attach).ignoresSafeArea() }
+        .alert("Photo", isPresented: Binding(get: { pickError != nil }, set: { if !$0 { pickError = nil } })) {
+            Button("OK") { pickError = nil }
+        } message: { Text(pickError ?? "") }
     }
+
+    private func attach(_ data: Data) {
+        guard let preview = UIImage(data: data) else {
+            pickError = "That photo couldn't be read."
+            return
+        }
+        attachment = ComposerAttachment(data: data, preview: preview)
+    }
+
+    #if DEBUG
+    /// A deterministic picture for UI tests, drawn at runtime (nothing synthetic ships).
+    private static func testImage() -> Data {
+        let size = CGSize(width: 640, height: 480)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let image = renderer.image { ctx in
+            let colors = [UIColor.systemIndigo.cgColor, UIColor.systemOrange.cgColor] as CFArray
+            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1])!
+            ctx.cgContext.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: size.width, y: size.height), options: [])
+            UIColor.white.setFill()
+            ctx.cgContext.fillEllipse(in: CGRect(x: 220, y: 140, width: 200, height: 200))
+        }
+        return image.jpegData(compressionQuality: 0.9) ?? Data()
+    }
+    #endif
 }
 
 private struct RemovedSheet: View {

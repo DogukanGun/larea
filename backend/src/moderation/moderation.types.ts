@@ -26,9 +26,17 @@ export const moderationDecisionSchema = z.object({
 
 export type ModerationDecision = z.infer<typeof moderationDecisionSchema>;
 
+export interface ModerationImage {
+  /** JPEG bytes, already downsized for the classifier. */
+  data: Buffer;
+  mimeType: 'image/jpeg';
+}
+
 export interface ModerationInput {
-  kind: 'message' | 'display_name';
+  kind: 'message' | 'display_name' | 'listing';
   text: string;
+  /** Present for photo messages and listing photos; judged together with the text. */
+  image?: ModerationImage;
   venueName?: string;
   recent?: { displayName: string; text: string }[];
   signals: string[];

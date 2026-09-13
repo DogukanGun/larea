@@ -40,6 +40,8 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Larea uses the camera to take a photo for a chat message or a listing.</string>
 	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
 	<dict>
 		<key>PreciseLocation</key>
@@ -47,6 +49,8 @@
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Your location is used to determine which nearby chats you can join. Your exact location is not shown to other users.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Larea shows your photo library so you can share a photo in a chat or add photos to a listing.</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

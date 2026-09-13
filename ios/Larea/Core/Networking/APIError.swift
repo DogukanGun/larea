@@ -12,6 +12,12 @@ enum APIError: Error, LocalizedError, Sendable {
         return nil
     }
 
+    /// HTTP status for API errors; nil for transport and decoding failures.
+    var status: Int? {
+        if case let .api(_, _, status, _, _) = self { return status }
+        return nil
+    }
+
     var mutedUntil: String? {
         if case let .api(_, _, _, mutedUntil, _) = self { return mutedUntil }
         return nil

@@ -69,6 +69,6 @@ describe('chat participants', () => {
 
   it('advertises backend features on /me', async () => {
     const me = await ctx.http().get('/me').set(auth(anna)).expect(200);
-    expect(me.body.features).toEqual({ images: false, polls: false, market: true, payments: false });
+    expect(me.body.features).toEqual({ images: true, polls: false, market: true, payments: false });
   });
 });
