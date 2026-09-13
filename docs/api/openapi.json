@@ -507,6 +507,45 @@
         ]
       }
     },
+    "/uploads": {
+      "post": {
+        "operationId": "MediaController_upload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Upload a photo (JPEG, PNG or WebP, max MEDIA_MAX_BYTES); returns the id to attach to a message or listing",
+        "tags": [
+          "media"
+        ]
+      }
+    },
     "/venues/{id}/messages": {
       "post": {
         "operationId": "MessagesController_send",
@@ -590,6 +629,113 @@
         "summary": "Recent visible messages (oldest first), or everything after a message id",
         "tags": [
           "messages"
+        ]
+      }
+    },
+    "/venues/{id}/polls": {
+      "post": {
+        "operationId": "PollsController_create",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePollDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Start a poll in the chat (a message of kind POLL); question and options are moderated together",
+        "tags": [
+          "polls"
+        ]
+      }
+    },
+    "/polls/{id}/vote": {
+      "post": {
+        "operationId": "PollsController_vote",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Vote (or change your vote) while the poll is open; members only",
+        "tags": [
+          "polls"
+        ]
+      }
+    },
+    "/polls/{id}/close": {
+      "post": {
+        "operationId": "PollsController_close",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Close the poll (author or moderator)",
+        "tags": [
+          "polls"
         ]
       }
     },
@@ -1063,10 +1209,24 @@
       "SendMessageDto": {
         "type": "object",
         "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "TEXT",
+              "IMAGE"
+            ],
+            "default": "TEXT",
+            "description": "IMAGE messages carry a mediaId from POST /uploads and an optional caption in text"
+          },
           "text": {
             "type": "string",
             "maxLength": 500,
-            "example": "Anyone want to get food?"
+            "example": "Anyone want to get food?",
+            "description": "Required for TEXT; optional caption for IMAGE"
+          },
+          "mediaId": {
+            "type": "string",
+            "description": "Upload id for IMAGE messages"
           },
           "clientKey": {
             "type": "string",
@@ -1074,8 +1234,53 @@
           }
         },
         "required": [
-          "text",
           "clientKey"
+        ]
+      },
+      "CreatePollDto": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 200,
+            "example": "Pizza or ramen tonight?"
+          },
+          "options": {
+            "minItems": 2,
+            "maxItems": 6,
+            "example": [
+              "Pizza",
+              "Ramen"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "durationMinutes": {
+            "type": "number",
+            "description": "Minutes until the poll closes on its own (5 minutes to 7 days); open until closed when omitted"
+          },
+          "clientKey": {
+            "type": "string",
+            "description": "Client-generated idempotency key"
+          }
+        },
+        "required": [
+          "question",
+          "options",
+          "clientKey"
+        ]
+      },
+      "VoteDto": {
+        "type": "object",
+        "properties": {
+          "optionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "optionId"
         ]
       },
       "CreateReportDto": {

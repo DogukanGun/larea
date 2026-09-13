@@ -158,6 +158,10 @@ final class ChatViewModel {
         case let .message(message) where message.venueId == venueId: add(message)
         case let .messageHidden(_, messageId): messages.removeAll { $0.id == messageId }
         case let .presence(id, count) where id == venueId: presence = count
+        case let .pollUpdate(id, messageId, poll) where id == venueId:
+            if let index = messages.firstIndex(where: { $0.id == messageId }) {
+                messages[index].poll = messages[index].poll?.merging(update: poll) ?? poll
+            }
         case let .enforcement(kind, until, message):
             if kind == "mute", let until, let date = ISO8601DateFormatter.larea.date(from: until) { mutedUntil = date }
             addNotice(.info, message)
@@ -207,6 +211,50 @@ final class ChatViewModel {
             apply(result, blockedFallback: "This photo doesn't meet our community guidelines.")
         } catch {
             await handleSendError(error)
+        }
+    }
+
+    /// Posts a poll into the chat; question and options are moderated together on the server.
+    func createPoll(_ draft: PollDraft) async {
+        let clean = PollValidation.cleaned(draft)
+        do {
+            let body = CreatePollRequest(question: clean.question, options: clean.options, durationMinutes: clean.duration.minutes, clientKey: UUID().uuidString)
+            let result: SendResult = try await api.send(try APIRequest(.POST, "venues/\(venueId)/polls", json: body))
+            apply(result, blockedFallback: "Polls can't contain that language. Please rephrase it.")
+        } catch {
+            await handleSendError(error)
+        }
+    }
+
+    /// Votes optimistically; the server's counts replace ours, or the change is rolled back.
+    func vote(messageId: String, optionId: String) async {
+        guard let index = messages.firstIndex(where: { $0.id == messageId }), var poll = messages[index].poll, !poll.isClosed else { return }
+        let before = poll
+        if let previous = poll.myOptionId, let i = poll.options.firstIndex(where: { $0.id == previous }) {
+            poll.options[i].votes = max(0, poll.options[i].votes - 1)
+        } else {
+            poll.totalVotes += 1
+        }
+        if let i = poll.options.firstIndex(where: { $0.id == optionId }) { poll.options[i].votes += 1 }
+        poll.myOptionId = optionId
+        messages[index].poll = poll
+        do {
+            let response: PollResponse = try await api.send(try APIRequest(.POST, "polls/\(poll.id)/vote", json: VoteRequest(optionId: optionId)))
+            if let current = messages.firstIndex(where: { $0.id == messageId }) { messages[current].poll = response.poll }
+        } catch {
+            if let current = messages.firstIndex(where: { $0.id == messageId }) { messages[current].poll = before }
+            if (error as? APIError)?.code == "NOT_MEMBER" { await rejoin() }
+            notice = error.userMessage
+        }
+    }
+
+    func closePoll(messageId: String) async {
+        guard let index = messages.firstIndex(where: { $0.id == messageId }), let poll = messages[index].poll else { return }
+        do {
+            let response: PollResponse = try await api.send(APIRequest(.POST, "polls/\(poll.id)/close"))
+            if let current = messages.firstIndex(where: { $0.id == messageId }) { messages[current].poll = response.poll }
+        } catch {
+            notice = error.userMessage
         }
     }
 

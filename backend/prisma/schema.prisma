@@ -125,6 +125,8 @@ model User {
   blocksReceived       Block[]               @relation("Blocked")
   incidents            Incident[]
   media            Media[]
+  polls            Poll[]
+  pollVotes        PollVote[]
 }
 
 model RefreshToken {
@@ -218,10 +220,59 @@ model Message {
   venue   Venue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
   author  User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
   media   Media? @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  poll    Poll?
   reports Report[]
 
   @@unique([authorId, clientKey])
   @@index([venueId, createdAt])
+}
+
+/// A poll lives in the chat as a message of kind POLL and disappears with it.
+model Poll {
+  id        String    @id @default(uuid())
+  messageId String    @unique
+  venueId   String
+  authorId  String
+  question  String
+  closed    Boolean   @default(false)
+  closesAt  DateTime?
+  createdAt DateTime  @default(now())
+
+  message Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  author  User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  options PollOption[]
+  votes   PollVote[]
+
+  @@index([venueId, createdAt])
+  @@index([authorId, venueId, closed])
+}
+
+model PollOption {
+  id       String @id @default(uuid())
+  pollId   String
+  position Int
+  text     String
+
+  poll  Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes PollVote[]
+
+  @@unique([pollId, position])
+}
+
+/// One vote per member per poll; changing the vote updates the row.
+model PollVote {
+  pollId    String
+  userId    String
+  optionId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  poll   Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([pollId, userId])
+  @@index([optionId])
 }
 
 /// An uploaded image (re-encoded JPEG + thumbnail on the uploads volume). Rows outlive the

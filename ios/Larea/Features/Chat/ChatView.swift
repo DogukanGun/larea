@@ -21,6 +21,7 @@ struct ChatView: View {
     @State private var showMembers = false
     @State private var attachment: ComposerAttachment?
     @State private var viewing: ImageAttachment?
+    @State private var showCreatePoll = false
 
     var body: some View {
         content(model)
@@ -93,7 +94,7 @@ struct ChatView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            Composer(draft: $draft, attachment: $attachment, disabled: model.isMuted) {
+            Composer(draft: $draft, attachment: $attachment, disabled: model.isMuted, onCreatePoll: { showCreatePoll = true }) {
                 let text = draft
                 let photo = attachment
                 draft = ""
@@ -106,12 +107,23 @@ struct ChatView: View {
             }
         }
         .fullScreenCover(item: $viewing) { image in ImageViewer(image: image) }
+        .sheet(isPresented: $showCreatePoll) {
+            CreatePollSheet { draft in
+                showCreatePoll = false
+                Task { await model.createPoll(draft) }
+            }
+            .presentationDetents([.large])
+        }
         .animation(reduceMotion ? nil : .spring(duration: 0.35), value: rows.map(\.id))
         .onChange(of: rows.count) { _, _ in
             // Pin to the newest row only when the user is already near the bottom.
             let nearBottom = scrolledId == nil || rows.suffix(3).contains { $0.id == scrolledId }
-            if nearBottom, let last = rows.last { scrolledId = last.id }
+            if nearBottom { scrollToNewest(rows) }
         }
+        // Our own actions always bring the newest row into view, even from far up the history.
+        .onChange(of: model.pending.count) { _, count in if count > 0 { scrollToNewest(rows) } }
+        .onChange(of: model.sentCount) { _, _ in scrollToNewest(rows) }
+        .onChange(of: model.notices.count) { _, _ in scrollToNewest(rows) }
         .sensoryFeedback(.success, trigger: model.sentCount)
         .sensoryFeedback(.warning, trigger: model.removedCount)
         .sheet(isPresented: Binding(get: { model.removed != nil }, set: { _ in })) {
@@ -146,6 +158,15 @@ struct ChatView: View {
         .onChange(of: model.left) { _, left in if left { onLeft() } }
     }
 
+    /// Scrolls after the current layout pass so the row transition cannot swallow the request.
+    private func scrollToNewest(_ rows: [ChatRow]) {
+        guard let last = rows.last else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(80))
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) { scrolledId = last.id }
+        }
+    }
+
     @ViewBuilder
     private func rowView(_ row: ChatRow, model: ChatViewModel) -> some View {
         switch row {
@@ -165,6 +186,20 @@ struct ChatView: View {
                     }
                 }
                 .padding(.top, showHeader ? Spacing.s : 0)
+        case let .poll(message):
+            if let poll = message.poll {
+                let mine = message.author.id == model.myUserId
+                PollRow(message: message, poll: poll, mine: mine, onVote: { optionId in Task { await model.vote(messageId: message.id, optionId: optionId) } }, onClose: { Task { await model.closePoll(messageId: message.id) } })
+                    .contextMenu {
+                        if !mine {
+                            Button("Report", systemImage: "flag") { reporting = message }
+                            Button("Block \(message.author.displayName)", systemImage: "hand.raised", role: .destructive) { blocking = message }
+                        }
+                    }
+                    .padding(.vertical, Spacing.xs)
+            } else {
+                Bubble(text: message.text, mine: message.author.id == model.myUserId, position: .single, pending: false)
+            }
         case let .notice(notice):
             NoticeChip(notice: notice).padding(.vertical, Spacing.xs)
         case let .pending(pending):
@@ -346,6 +381,7 @@ private struct Composer: View {
     @Binding var draft: String
     @Binding var attachment: ComposerAttachment?
     let disabled: Bool
+    let onCreatePoll: () -> Void
     let onSend: () -> Void
     @State private var pickedItem: PhotosPickerItem?
     @State private var showLibrary = false
@@ -391,6 +427,8 @@ private struct Composer: View {
                         Button("Take photo", systemImage: "camera") { showCamera = true }
                             .accessibilityIdentifier("chat.attach.camera")
                     }
+                    Button("Create poll", systemImage: "chart.bar") { onCreatePoll() }
+                        .accessibilityIdentifier("chat.poll")
                     #if DEBUG
                     if UserDefaults.standard.bool(forKey: "LareaTestSeedImage") {
                         Button("Use test image", systemImage: "testtube.2") { attach(Self.testImage()) }
@@ -405,7 +443,7 @@ private struct Composer: View {
                         .background(Color.brandTint, in: Circle())
                 }
                 .disabled(disabled)
-                .accessibilityLabel("Add photo")
+                .accessibilityLabel("Add photo or poll")
                 .accessibilityIdentifier("chat.attach")
                 TextField(placeholder, text: $draft, axis: .vertical)
                     .lineLimit(1...5)

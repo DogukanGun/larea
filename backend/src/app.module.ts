@@ -13,6 +13,7 @@ import { EnforcementModule } from './enforcement/enforcement.module.js';
 import { MediaModule } from './media/media.module.js';
 import { MessagesModule } from './messages/messages.module.js';
 import { ModerationModule } from './moderation/moderation.module.js';
+import { PollsModule } from './polls/polls.module.js';
 import { PresenceModule } from './presence/presence.module.js';
 import { RealtimeCoreModule } from './realtime/realtime.core.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
@@ -41,6 +42,7 @@ import { VerificationModule } from './verification/verification.module.js';
     BlocksModule,
     MediaModule,
     MessagesModule,
+    PollsModule,
     ReportsModule,
     AdminModule,
     RetentionModule,

@@ -17,6 +17,10 @@ final class ServerEventDecodingTests: XCTestCase {
         guard case let .message(message) = try decode(#"{"type":"message","message":{"id":"m1","venueId":"v1","author":{"id":"u1","displayName":"anna_k"},"text":"hi","status":"APPROVED","createdAt":"2026-09-06T21:00:00.000Z"}}"#) else { return XCTFail("message") }
         XCTAssertEqual(message.author.displayName, "anna_k")
 
+        guard case let .pollUpdate(pollVenue, pollMessage, poll) = try decode(#"{"type":"poll_update","venueId":"v1","messageId":"m9","poll":{"id":"p1","question":"Pizza?","options":[{"id":"o1","text":"Yes","votes":2},{"id":"o2","text":"No","votes":1}],"totalVotes":3,"closed":false,"closesAt":null}}"#) else { return XCTFail("poll_update") }
+        XCTAssertEqual(pollVenue, "v1"); XCTAssertEqual(pollMessage, "m9")
+        XCTAssertEqual(poll.options.map(\.votes), [2, 1]); XCTAssertNil(poll.myOptionId); XCTAssertFalse(poll.isClosed)
+
         guard case let .messageHidden(venueId, messageId) = try decode(#"{"type":"message_hidden","venueId":"v1","messageId":"m1"}"#) else { return XCTFail("hidden") }
         XCTAssertEqual(venueId, "v1"); XCTAssertEqual(messageId, "m1")
 

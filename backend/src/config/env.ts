@@ -99,7 +99,7 @@ export function marketEnabled(env: Pick<Env, 'MARKET_ENABLED' | 'NODE_ENV'>): bo
 export function featuresOf(env: Pick<Env, 'MARKET_ENABLED' | 'MARKET_PAYMENTS_ENABLED' | 'NODE_ENV'>): Features {
   const market = marketEnabled(env);
   // images and polls flip to true when their milestones ship; market/payments are configuration.
-  return { images: true, polls: false, market, payments: market && env.MARKET_PAYMENTS_ENABLED };
+  return { images: true, polls: true, market, payments: market && env.MARKET_PAYMENTS_ENABLED };
 }
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {

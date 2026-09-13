@@ -15,13 +15,14 @@ enum ServerEvent: Sendable, Equatable {
     case removed(venueId: String, reason: String, message: String)
     case enforcement(kind: String, until: String?, message: String)
     case presence(venueId: String, count: Int)
+    case pollUpdate(venueId: String, messageId: String, poll: PollView)
     case pong(reqId: String?)
     case error(reqId: String?, code: String, message: String)
 }
 
 extension ServerEvent: Decodable {
     private enum Keys: String, CodingKey {
-        case type, reqId, ok, reason, data, message, venueId, messageId, kind, until, count, code
+        case type, reqId, ok, reason, data, message, venueId, messageId, kind, until, count, code, poll
     }
 
     init(from decoder: Decoder) throws {
@@ -52,6 +53,12 @@ extension ServerEvent: Decodable {
             )
         case "presence":
             self = .presence(venueId: try c.decode(String.self, forKey: .venueId), count: try c.decode(Int.self, forKey: .count))
+        case "poll_update":
+            self = .pollUpdate(
+                venueId: try c.decode(String.self, forKey: .venueId),
+                messageId: try c.decode(String.self, forKey: .messageId),
+                poll: try c.decode(PollView.self, forKey: .poll)
+            )
         case "pong":
             self = .pong(reqId: try c.decodeIfPresent(String.self, forKey: .reqId))
         case "error":

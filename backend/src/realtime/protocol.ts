@@ -28,6 +28,17 @@ export interface ChatImageView {
   height: number;
 }
 
+export interface ChatPollView {
+  id: string;
+  question: string;
+  options: { id: string; text: string; votes: number }[];
+  totalVotes: number;
+  closed: boolean;
+  closesAt: string | null;
+  /** Only in REST responses (per viewer); never in fan-out. */
+  myOptionId?: string | null;
+}
+
 export interface ChatMessageView {
   id: string;
   venueId: string;
@@ -39,6 +50,7 @@ export interface ChatMessageView {
   /** IMAGE only: the caption, possibly empty. */
   caption?: string;
   image?: ChatImageView;
+  poll?: ChatPollView;
   status: 'APPROVED' | 'CENSORED';
   createdAt: string;
 }
@@ -50,6 +62,7 @@ export type ServerEvent =
   | { type: 'removed'; venueId: string; reason: RemovalReason; message: string }
   | { type: 'enforcement'; kind: 'mute' | 'suspend'; until: string | null; message: string }
   | { type: 'presence'; venueId: string; count: number }
+  | { type: 'poll_update'; venueId: string; messageId: string; poll: ChatPollView }
   | { type: 'pong'; reqId?: string }
   | { type: 'error'; reqId?: string; code: string; message: string };
 

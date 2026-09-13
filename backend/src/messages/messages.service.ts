@@ -10,6 +10,7 @@ import { MEDIA_SUMMARY_SELECT, MediaService, type MediaSummary } from '../media/
 import { ModerationService } from '../moderation/moderation.service.js';
 import { type ModerationDecision, ModerationUnavailableError } from '../moderation/moderation.types.js';
 import { MAX_CAPTION_LENGTH, normalizeText } from '../moderation/rules.js';
+import { POLL_INCLUDE, type PollRow, toPollView } from '../polls/poll-view.js';
 import { PresenceService } from '../presence/presence.service.js';
 import type { ChatMessageView } from '../realtime/protocol.js';
 import { RealtimeBus } from '../realtime/realtime.bus.js';
@@ -28,9 +29,13 @@ export interface SendResult {
   notice?: string;
 }
 
-export type MessageRow = Message & { author: { id: string; displayName: string }; media?: MediaSummary | null };
+export type MessageRow = Message & { author: { id: string; displayName: string }; media?: MediaSummary | null; poll?: PollRow | null };
 
-export const MESSAGE_INCLUDE = { author: { select: { id: true, displayName: true } }, media: { select: MEDIA_SUMMARY_SELECT } } as const;
+export const MESSAGE_INCLUDE = {
+  author: { select: { id: true, displayName: true } },
+  media: { select: MEDIA_SUMMARY_SELECT },
+  poll: { include: POLL_INCLUDE },
+} as const;
 
 export interface SendInput {
   kind?: 'TEXT' | 'IMAGE';
@@ -69,7 +74,18 @@ export class MessagesService {
       const image = this.media.toView(m.media);
       if (image) view.image = image;
     }
+    if (m.kind === 'POLL' && m.poll) view.poll = toPollView(m.poll);
     return view;
+  }
+
+  /** Adds the viewer's own choice to every poll in the list (one query). */
+  async withMyVotes(views: ChatMessageView[], userId: string): Promise<ChatMessageView[]> {
+    const pollIds = views.flatMap((v) => (v.poll ? [v.poll.id] : []));
+    if (pollIds.length === 0) return views;
+    const votes = await this.prisma.pollVote.findMany({ where: { userId, pollId: { in: pollIds } }, select: { pollId: true, optionId: true } });
+    const mine = new Map(votes.map((v) => [v.pollId, v.optionId]));
+    for (const v of views) if (v.poll) v.poll.myOptionId = mine.get(v.poll.id) ?? null;
+    return views;
   }
 
   async send(user: UserSnapshot, venueId: string, input: SendInput): Promise<SendResult> {
@@ -215,7 +231,7 @@ export class MessagesService {
         take: limit,
         include: MESSAGE_INCLUDE,
       });
-      return rows.map((m) => this.toView(m));
+      return this.withMyVotes(rows.map((m) => this.toView(m)), userId);
     }
     const rows = await this.prisma.message.findMany({
       where: { venueId, status: { in: visible }, authorId: { notIn: excluded } },
@@ -223,7 +239,7 @@ export class MessagesService {
       take: limit,
       include: MESSAGE_INCLUDE,
     });
-    return rows.reverse().map((m) => this.toView(m));
+    return this.withMyVotes(rows.reverse().map((m) => this.toView(m)), userId);
   }
 
   /** Hides a visible message for everyone (moderator action or report threshold). */

@@ -293,6 +293,78 @@ struct ImageAttachment: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
+struct PollOptionView: Codable, Sendable, Equatable, Identifiable {
+    let id: String
+    let text: String
+    var votes: Int = 0
+
+    private enum Keys: String, CodingKey { case id, text, votes }
+
+    init(id: String, text: String, votes: Int = 0) {
+        self.id = id
+        self.text = text
+        self.votes = votes
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        id = try c.decode(String.self, forKey: .id)
+        text = try c.decode(String.self, forKey: .text)
+        votes = try c.decodeIfPresent(Int.self, forKey: .votes) ?? 0
+    }
+}
+
+struct PollView: Codable, Sendable, Equatable, Identifiable {
+    let id: String
+    let question: String
+    var options: [PollOptionView]
+    var totalVotes: Int = 0
+    /// The viewer's choice; only REST responses carry it, fan-out updates keep the local one.
+    var myOptionId: String? = nil
+    var closed = false
+    var closesAt: String? = nil
+
+    var isClosed: Bool {
+        if closed { return true }
+        guard let closesAt, let date = ISO8601DateFormatter.larea.date(from: closesAt) else { return false }
+        return date <= .now
+    }
+
+    func percent(of option: PollOptionView) -> Int {
+        totalVotes > 0 ? Int((Double(option.votes) / Double(totalVotes) * 100).rounded()) : 0
+    }
+
+    /// Fresh counts from the room, keeping what only we know (our own vote).
+    func merging(update: PollView) -> PollView {
+        var merged = update
+        merged.myOptionId = update.myOptionId ?? myOptionId
+        return merged
+    }
+
+    private enum Keys: String, CodingKey { case id, question, options, totalVotes, myOptionId, closed, closesAt }
+
+    init(id: String, question: String, options: [PollOptionView], totalVotes: Int = 0, myOptionId: String? = nil, closed: Bool = false, closesAt: String? = nil) {
+        self.id = id
+        self.question = question
+        self.options = options
+        self.totalVotes = totalVotes
+        self.myOptionId = myOptionId
+        self.closed = closed
+        self.closesAt = closesAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        id = try c.decode(String.self, forKey: .id)
+        question = try c.decode(String.self, forKey: .question)
+        options = try c.decodeIfPresent([PollOptionView].self, forKey: .options) ?? []
+        totalVotes = try c.decodeIfPresent(Int.self, forKey: .totalVotes) ?? options.reduce(0) { $0 + $1.votes }
+        myOptionId = try c.decodeIfPresent(String.self, forKey: .myOptionId)
+        closed = try c.decodeIfPresent(Bool.self, forKey: .closed) ?? false
+        closesAt = try c.decodeIfPresent(String.self, forKey: .closesAt)
+    }
+}
+
 struct ChatMessage: Codable, Sendable, Identifiable, Equatable {
     let id: String
     let venueId: String
@@ -304,10 +376,11 @@ struct ChatMessage: Codable, Sendable, Identifiable, Equatable {
     var kind: MessageKind = .text
     var caption: String? = nil
     var image: ImageAttachment? = nil
+    var poll: PollView? = nil
 }
 
 extension ChatMessage {
-    private enum Keys: String, CodingKey { case id, venueId, author, text, status, createdAt, kind, caption, image }
+    private enum Keys: String, CodingKey { case id, venueId, author, text, status, createdAt, kind, caption, image, poll }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
@@ -320,8 +393,20 @@ extension ChatMessage {
         kind = try c.decodeIfPresent(MessageKind.self, forKey: .kind) ?? .text
         caption = try c.decodeIfPresent(String.self, forKey: .caption)
         image = try c.decodeIfPresent(ImageAttachment.self, forKey: .image)
+        poll = try c.decodeIfPresent(PollView.self, forKey: .poll)
     }
 }
+
+struct CreatePollRequest: Encodable, Sendable {
+    let question: String
+    let options: [String]
+    var durationMinutes: Int? = nil
+    let clientKey: String
+}
+
+struct VoteRequest: Encodable, Sendable { let optionId: String }
+
+struct PollResponse: Decodable, Sendable { let poll: PollView }
 
 struct SendMessageRequest: Encodable, Sendable {
     var kind: String? = nil

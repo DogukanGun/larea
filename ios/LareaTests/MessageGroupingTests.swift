@@ -39,4 +39,16 @@ final class MessageGroupingTests: XCTestCase {
         XCTAssertEqual(separators.count, 2)
         XCTAssertEqual(rows.first?.id, "sep-a1")
     }
+
+    func testPollsStandAloneAndSplitNeighbours() {
+        var poll = message("p1", author: "anna", at: 30)
+        poll.kind = .poll
+        poll.poll = PollView(id: "poll", question: "Pizza?", options: [PollOptionView(id: "o1", text: "Yes")])
+        let rows = buildChatRows(messages: [message("a1", author: "anna", at: 0), poll, message("a2", author: "anna", at: 60)])
+        let ids = rows.map(\.id)
+        XCTAssertEqual(ids, ["sep-a1", "a1", "p1", "a2"])
+        guard case let .message(_, first, _) = rows[1], case .poll = rows[2], case let .message(_, last, _) = rows[3] else { return XCTFail("row kinds") }
+        XCTAssertEqual(first, .single)
+        XCTAssertEqual(last, .single)
+    }
 }

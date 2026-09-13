@@ -14,6 +14,8 @@ struct SystemNotice: Identifiable, Equatable, Sendable {
 enum ChatRow: Identifiable, Equatable {
     case separator(id: String, date: Date)
     case message(ChatMessage, position: GroupPosition, showHeader: Bool)
+    /// A poll stands on its own: it never groups with the bubbles around it.
+    case poll(ChatMessage)
     case notice(SystemNotice)
     case pending(PendingMessage)
 
@@ -21,6 +23,7 @@ enum ChatRow: Identifiable, Equatable {
         switch self {
         case let .separator(id, _): return "sep-\(id)"
         case let .message(message, _, _): return message.id
+        case let .poll(message): return message.id
         case let .notice(notice): return "notice-\(notice.id)"
         case let .pending(pending): return "pending-\(pending.id)"
         }
@@ -46,8 +49,12 @@ func buildChatRows(
             rows.append(.separator(id: message.id, date: date))
         }
 
-        let groupedWithPrevious = previous.map { $0.0.author.id == message.author.id && (gapBefore ?? .infinity) < groupWindow && (gapBefore ?? 0) < separatorGap } ?? false
-        let groupedWithNext = next.map { $0.0.author.id == message.author.id && $0.1.timeIntervalSince(date) < groupWindow && $0.1.timeIntervalSince(date) < separatorGap } ?? false
+        if message.kind == .poll {
+            rows.append(.poll(message))
+            continue
+        }
+        let groupedWithPrevious = previous.map { $0.0.kind != .poll && $0.0.author.id == message.author.id && (gapBefore ?? .infinity) < groupWindow && (gapBefore ?? 0) < separatorGap } ?? false
+        let groupedWithNext = next.map { $0.0.kind != .poll && $0.0.author.id == message.author.id && $0.1.timeIntervalSince(date) < groupWindow && $0.1.timeIntervalSince(date) < separatorGap } ?? false
 
         let position: GroupPosition
         switch (groupedWithPrevious, groupedWithNext) {

@@ -133,6 +133,29 @@ final class LareaFlowUITests: XCTestCase {
         sleep(1)
         snapshot(app, "08a-chat-photo")
 
+        // A poll: create it from the attachment menu, then vote.
+        app.buttons["chat.attach"].tap()
+        let pollEntry = app.descendants(matching: .any).matching(identifier: "chat.poll").firstMatch
+        XCTAssertTrue(pollEntry.waitForExistence(timeout: 5), "the poll entry did not appear")
+        pollEntry.tap()
+        let question = app.descendants(matching: .any).matching(identifier: "poll.question").firstMatch
+        XCTAssertTrue(question.waitForExistence(timeout: 10))
+        question.tap()
+        question.typeText("Pizza or ramen tonight?")
+        app.textFields["poll.option.0"].tap()
+        app.textFields["poll.option.0"].typeText("Pizza")
+        app.textFields["poll.option.1"].tap()
+        app.textFields["poll.option.1"].typeText("Ramen")
+        app.buttons["poll.submit"].tap()
+        XCTAssertTrue(app.staticTexts["Pizza or ramen tonight?"].waitForExistence(timeout: 20), "the poll did not appear in the chat")
+        let firstOption = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'poll.' AND identifier CONTAINS '.option.'")).firstMatch
+        XCTAssertTrue(firstOption.waitForExistence(timeout: 5))
+        firstOption.tap()
+        XCTAssertTrue(app.staticTexts["100%"].waitForExistence(timeout: 15), "the vote did not register")
+        sleep(1)
+        snapshot(app, "08b-poll")
+
+
         composer.tap()
         composer.typeText("this is damn good")
         app.buttons["chat.send"].tap()
