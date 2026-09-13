@@ -1,0 +1,117 @@
+name: Larea
+options:
+  bundleIdPrefix: com.larea
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: 8HZ7L8U8KY  # personal Apple Developer account (Individual)
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+targets:
+  Larea:
+    type: application
+    platform: iOS
+    sources:
+      - path: Larea
+        excludes: ["Resources/Info.plist", "Larea.entitlements"]
+    entitlements:
+      path: Larea/Larea.entitlements
+      properties:
+        com.apple.developer.declared-age-range: true
+    info:
+      path: Larea/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Larea
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+          UIImageName: LaunchLogo
+          UIImageRespectsSafeAreaInsets: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        NSLocationWhenInUseUsageDescription: "Your location is used to determine which nearby chats you can join. Your exact location is not shown to other users."
+        NSLocationTemporaryUsageDescriptionDictionary:
+          PreciseLocation: "Larea needs your precise location to confirm that you are at this place."
+        CFBundleURLTypes:
+          - CFBundleURLName: com.dogukangundogan.larea
+            CFBundleURLSchemes: [larea]
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        LareaAPIBaseURL: "$(LAREA_API_BASE_URL)"
+        LareaWebSocketURL: "$(LAREA_WS_URL)"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dogukangundogan.larea
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: BrandPrimary
+      configs:
+        Debug:
+          # Debug builds also talk to the test server. For a local backend, launch with
+          # SIMCTL_CHILD_LAREA_API_BASE_URL=http://localhost:3000/ (and the ws:// counterpart).
+          LAREA_API_BASE_URL: "https://larea.dogukangundogan.com/"
+          LAREA_WS_URL: "wss://larea.dogukangundogan.com/ws"
+        Release:
+          LAREA_API_BASE_URL: "https://larea.dogukangundogan.com/"
+          LAREA_WS_URL: "wss://larea.dogukangundogan.com/ws"
+  LareaTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [LareaTests]
+    dependencies:
+      - target: Larea
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dogukangundogan.larea.tests
+        GENERATE_INFOPLIST_FILE: YES
+  LareaUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: LareaUITests
+        excludes: ["Info.plist"]
+    dependencies:
+      - target: Larea
+    info:
+      path: LareaUITests/Info.plist
+      properties:
+        # Override the backend under test: xcodebuild ... LAREA_TEST_API_BASE_URL=https://host/ LAREA_TEST_WS_URL=wss://host/ws
+        LareaTestAPIBaseURL: "$(LAREA_TEST_API_BASE_URL)"
+        LareaTestWSURL: "$(LAREA_TEST_WS_URL)"
+        # Simulated position for the flow test; defaults to a real Berlin library so it works against the server too.
+        LareaTestLat: "$(LAREA_TEST_LAT)"
+        LareaTestLng: "$(LAREA_TEST_LNG)"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dogukangundogan.larea.uitests
+        LAREA_TEST_API_BASE_URL: ""
+        LAREA_TEST_WS_URL: ""
+        LAREA_TEST_LAT: "52.5316059"
+        LAREA_TEST_LNG: "13.3986959"
+schemes:
+  Larea:
+    build:
+      targets:
+        Larea: all
+        LareaTests: [test]
+        LareaUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets: [LareaTests]
+  LareaUI:
+    build:
+      targets:
+        Larea: all
+        LareaUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets: [LareaUITests]

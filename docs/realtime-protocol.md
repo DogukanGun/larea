@@ -1,0 +1,69 @@
+# Larea realtime protocol
+
+Plain WebSocket (RFC 6455), JSON text frames, one event per frame. No Socket.IO.
+
+## Connecting
+
+`GET /ws` with the header `Authorization: Bearer <access token>` on the upgrade request.
+
+| Outcome | Response |
+|---|---|
+| Missing, invalid, or expired token | HTTP `401` on the upgrade (no socket). Refresh the token and reconnect. |
+| Suspended account | HTTP `403` on the upgrade. |
+| Wrong path | HTTP `404`. |
+| Server revokes an open connection | Close code `4401` (session invalid, e.g. account deleted) or `4403` (suspended). |
+
+The server pings every 30 s and terminates a socket that does not answer within the next ping cycle. Reconnect with exponential backoff (1 s, 2 s, 4 s, ... max 30 s). On every reconnect, and whenever the app returns to the foreground: send `join` for the venue you are in, then an immediate `heartbeat`.
+
+Frames larger than 4 KB are rejected.
+
+## Client → server
+
+Every message may carry a `reqId` (string, ≤ 64 chars); the server answers with an `ack` carrying the same `reqId`.
+
+```json
+{"type":"join","reqId":"1","venueId":"<venue id>"}
+{"type":"leave","reqId":"2","venueId":"<venue id>"}
+{"type":"heartbeat","reqId":"3","venueId":"<venue id>","lat":52.5219,"lng":13.4132,"accuracy":12,"mocked":false}
+{"type":"ping","reqId":"4"}
+```
+
+- `join` subscribes this socket to the venue room. It requires an ACTIVE membership created with `POST /venues/:id/join` first. Ack: `{ok:true, data:{membershipId, memberCount, timing}}` or `{ok:false, reason:"not_member"}` → run the REST join again with a fresh fix.
+- `heartbeat` should be sent every `timing.heartbeatIntervalSec` (default 25 s) while the chat screen is open, and immediately after reconnect or foregrounding. Ack `data.state` is one of:
+  - `eligible` – precise fix inside the venue; you may keep chatting.
+  - `weak_gps` – imprecise fix that still overlaps the venue; show a "weak GPS" hint. After `timing.weakGpsGraceSec` without an `eligible` fix the server removes you (`unconfirmed`).
+  - `outside` – the whole error circle is beyond the leave radius. Two consecutive `outside` fixes remove you (`removed:true` in the ack and a `removed` event).
+  - `ignored` – the fix was discarded (`reason`: `mock_location` or `implausible_movement`).
+  - `{ok:false, reason:"not_member"}` – you are no longer a member; rejoin via REST when back in range.
+- `leave` ends the membership and unsubscribes the socket.
+- `ping` → `pong`.
+
+Coordinates sent in heartbeats are used for the eligibility check only. They are never stored in the database, never logged, and never shown to other users.
+
+## Server → client
+
+```json
+{"type":"ack","reqId":"1","ok":true,"data":{...}}
+{"type":"message","message":{"id":"…","venueId":"…","author":{"id":"…","displayName":"anna_k"},"text":"Anyone want to get food?","status":"APPROVED","createdAt":"2026-09-06T21:00:00.000Z"}}
+{"type":"message_hidden","venueId":"…","messageId":"…"}
+{"type":"removed","venueId":"…","reason":"out_of_range","message":"You're no longer near this location. You've been removed from the chat."}
+{"type":"enforcement","kind":"mute","until":"2026-09-06T22:00:00.000Z","message":"…"}
+{"type":"presence","venueId":"…","count":7}
+{"type":"pong","reqId":"4"}
+{"type":"error","reqId":"3","code":"BAD_MESSAGE","message":"…"}
+```
+
+`removed.reason` values and the expected client behaviour:
+
+| reason | Show the message? | Then |
+|---|---|---|
+| `out_of_range` | Yes | Leave the chat screen; the user can rejoin when back in range. |
+| `stale` | No | Silently try `POST /venues/:id/join` with a fresh fix (the app was backgrounded or offline). |
+| `unconfirmed` | Yes (soft) | Ask the user to move somewhere with better GPS, then rejoin. |
+| `venue_closed` | Yes | Leave the chat screen. |
+| `suspended` | Yes | Leave the chat screen; the account is read-only. |
+| `replaced` | No | This device's membership moved to another venue (another device joined elsewhere). |
+| `user_left` | No | Confirmation of a `leave`. |
+
+Messages from users you blocked, or who blocked you, are never delivered to you (filtered server-side).
+Messages are sent over REST (`POST /venues/:id/messages`) so the moderation verdict comes back synchronously; approved messages then arrive on this socket for everyone in the room, including the sender.

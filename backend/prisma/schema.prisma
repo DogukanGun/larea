@@ -1,0 +1,282 @@
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum VerificationStatus {
+  PASSED
+  FAILED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  ENDED
+}
+
+enum MembershipEndReason {
+  USER_LEFT
+  OUT_OF_RANGE
+  STALE
+  UNCONFIRMED
+  VENUE_CLOSED
+  SUSPENDED
+  REPLACED
+}
+
+enum MessageStatus {
+  APPROVED
+  CENSORED
+  BLOCKED
+  HIDDEN
+}
+
+enum ViolationSource {
+  AUTO
+  MODERATOR
+}
+
+enum EnforcementKind {
+  MUTE
+  SUSPEND
+}
+
+enum ReportReason {
+  HARASSMENT
+  THREAT
+  HATE
+  SEXUAL
+  SPAM
+  SCAM
+  PERSONAL_INFO
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  ACTIONED
+  DISMISSED
+}
+
+enum IncidentKind {
+  SEVERE_CONTENT
+  STRIKE_THRESHOLD
+  REPORT_THRESHOLD
+}
+
+enum IncidentStatus {
+  OPEN
+  RESOLVED
+}
+
+model User {
+  id                   String    @id @default(uuid())
+  email                String    @unique
+  passwordHash         String
+  displayName          String
+  displayNameLower     String    @unique
+  role                 Role      @default(USER)
+  ageVerifiedAt        DateTime?
+  ageThreshold         Int?
+  verificationProvider String?
+  verificationRef      String?
+  mutedUntil           DateTime?
+  suspendedAt          DateTime?
+  suspensionReason     String?
+  deletedAt            DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  refreshTokens        RefreshToken[]
+  verificationSessions VerificationSession[]
+  memberships          Membership[]
+  messages             Message[]
+  violations           Violation[]
+  enforcements         Enforcement[]
+  reportsMade          Report[]              @relation("Reporter")
+  reportsReceived      Report[]              @relation("ReportedUser")
+  blocksMade           Block[]               @relation("Blocker")
+  blocksReceived       Block[]               @relation("Blocked")
+  incidents            Incident[]
+}
+
+model RefreshToken {
+  id          String    @id @default(uuid())
+  userId      String
+  tokenHash   String    @unique
+  deviceLabel String?
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// One row per age-assurance attempt. Only the platform, the declaration kind and the
+/// outcome are kept; never an age, birthday or document.
+model VerificationSession {
+  id          String             @id @default(uuid())
+  userId      String
+  provider    String
+  providerRef String?
+  status      VerificationStatus
+  createdAt   DateTime           @default(now())
+  completedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Venue {
+  id           String   @id @default(uuid())
+  slug         String   @unique
+  name         String
+  label        String   @default("General Chat")
+  category     String   @default("square")
+  address      String?
+  source       String   @default("seed")
+  sourceRef    String?
+  lat          Float
+  lng          Float
+  joinRadiusM  Int      @default(200)
+  leaveRadiusM Int      @default(250)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships Membership[]
+  messages    Message[]
+
+  @@unique([source, sourceRef])
+  @@index([lat, lng])
+}
+
+model Membership {
+  id              String               @id @default(uuid())
+  userId          String
+  venueId         String
+  status          MembershipStatus     @default(ACTIVE)
+  endReason       MembershipEndReason?
+  joinedAt        DateTime             @default(now())
+  lastHeartbeatAt DateTime             @default(now())
+  lastEligibleAt  DateTime             @default(now())
+  endedAt         DateTime?
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  // A partial unique index "(userId) WHERE status = 'ACTIVE'" is added in a migration.
+  @@index([venueId, status])
+  @@index([status, lastHeartbeatAt])
+}
+
+model Message {
+  id               String        @id @default(uuid())
+  venueId          String
+  authorId         String
+  text             String
+  originalText     String?
+  status           MessageStatus
+  severity         Int           @default(0)
+  categories       String[]      @default([])
+  moderationReason String?
+  clientKey        String
+  createdAt        DateTime      @default(now())
+
+  venue   Venue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  author  User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  reports Report[]
+
+  @@unique([authorId, clientKey])
+  @@index([venueId, createdAt])
+}
+
+model Violation {
+  id         String          @id @default(uuid())
+  userId     String
+  messageId  String?
+  severity   Int
+  categories String[]        @default([])
+  source     ViolationSource @default(AUTO)
+  createdAt  DateTime        @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Enforcement {
+  id        String          @id @default(uuid())
+  userId    String
+  kind      EnforcementKind
+  reason    String
+  expiresAt DateTime?
+  createdBy String          @default("SYSTEM")
+  createdAt DateTime        @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Report {
+  id             String       @id @default(uuid())
+  reporterId     String
+  messageId      String
+  reportedUserId String
+  reason         ReportReason
+  details        String?
+  status         ReportStatus @default(OPEN)
+  reviewedById   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  reporter     User    @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser User    @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  message      Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([reporterId, messageId])
+  @@index([status, createdAt])
+  @@index([messageId])
+}
+
+model Block {
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+model Incident {
+  id        String         @id @default(uuid())
+  userId    String
+  kind      IncidentKind
+  refId     String?
+  status    IncidentStatus @default(OPEN)
+  createdAt DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+}

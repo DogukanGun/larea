@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Larea</string>
+
+    <string name="auth_sign_in">Sign in</string>
+    <string name="auth_sign_up">Create account</string>
+    <string name="auth_email">Email</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_display_name">Display name</string>
+    <string name="auth_display_name_hint">3–24 characters: letters, numbers, spaces, underscores or dots</string>
+    <string name="auth_no_account">New here? Create an account</string>
+    <string name="auth_have_account">Already have an account? Sign in</string>
+    <string name="auth_password_hint">At least 10 characters</string>
+
+    <string name="verify_title">Age verification</string>
+    <string name="verify_body">Larea connects you with people who are physically close to you, so we need to confirm you are 18 or older before you can join a chat. We only keep whether you passed, never your documents or date of birth.</string>
+    <string name="verify_start">Verify my age</string>
+    <string name="verify_pending">Waiting for the result…</string>
+    <string name="verify_check_again">Check again</string>
+    <string name="verify_failed">Verification didn\'t succeed. You can try again after a short wait.</string>
+    <string name="verify_resubmit">The provider asked for another attempt. Please try again.</string>
+    <string name="verify_retry_in">Try again in %1$s</string>
+
+    <string name="location_title">Location access</string>
+    <string name="location_body">Your location is used to determine which nearby chats you can join. Your exact location is not shown to other users.</string>
+    <string name="location_allow">Allow location</string>
+    <string name="location_precise_required">Larea needs precise location to confirm you are at a place. Please enable precise location for Larea in Settings.</string>
+    <string name="location_open_settings">Open settings</string>
+
+    <string name="nearby_title">Nearby chats</string>
+    <string name="nearby_badge">Nearby</string>
+    <string name="nearby_empty">No chats around here yet. Chats exist at specific places such as squares, stations and stadiums.</string>
+    <string name="nearby_locating">Finding your location…</string>
+    <string name="nearby_members">%1$d here now</string>
+    <string name="nearby_general_chat">General Chat</string>
+
+    <string name="chat_header">%1$s — %2$s</string>
+    <string name="chat_placeholder">Say something…</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_empty">Nobody has said anything yet. Start the conversation.</string>
+    <string name="chat_weak_gps">Weak GPS signal — we may not be able to confirm you\'re still here.</string>
+    <string name="chat_report">Report</string>
+    <string name="chat_block">Block %1$s</string>
+    <string name="chat_blocked_done">%1$s is blocked.</string>
+    <string name="chat_report_done">Thanks, your report was sent.</string>
+    <string name="chat_removed_title">Removed from chat</string>
+    <string name="chat_leave">Leave chat</string>
+    <string name="chat_presence">%1$d here</string>
+    <string name="chat_reconnecting">Reconnecting…</string>
+    <string name="chat_muted_until">You can\'t send messages until %1$s.</string>
+
+    <string name="report_title">Report message</string>
+    <string name="report_harassment">Harassment</string>
+    <string name="report_threat">Threat</string>
+    <string name="report_hate">Hate</string>
+    <string name="report_sexual">Sexual content</string>
+    <string name="report_spam">Spam</string>
+    <string name="report_scam">Scam</string>
+    <string name="report_personal_info">Personal information</string>
+    <string name="report_other">Other</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_display_name">Display name</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_blocked">Blocked users</string>
+    <string name="settings_no_blocked">You haven\'t blocked anyone.</string>
+    <string name="settings_unblock">Unblock</string>
+    <string name="settings_sign_out">Sign out</string>
+    <string name="settings_delete">Delete account</string>
+    <string name="settings_delete_confirm">Delete your account? Your profile is removed immediately and cannot be restored.</string>
+    <string name="settings_suspended">Your account has been suspended.</string>
+
+    <string name="common_ok">OK</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_retry">Retry</string>
+    <string name="common_error_network">Can\'t reach Larea. Check your connection and try again.</string>
+</resources>

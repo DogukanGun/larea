@@ -1,0 +1,30 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { MAX_MESSAGE_LENGTH } from '../../moderation/rules.js';
+
+export class SendMessageDto {
+  @ApiProperty({ maxLength: MAX_MESSAGE_LENGTH, example: 'Anyone want to get food?' })
+  @IsString()
+  @MinLength(1, { message: 'Message cannot be empty.' })
+  @MaxLength(MAX_MESSAGE_LENGTH, { message: `Messages can be at most ${MAX_MESSAGE_LENGTH} characters.` })
+  text!: string;
+
+  @ApiProperty({ description: 'Client-generated idempotency key (e.g. a UUID); resending with the same key returns the original result' })
+  @IsString()
+  @Matches(/^[A-Za-z0-9_-]{8,64}$/, { message: 'clientKey must be 8-64 URL-safe characters.' })
+  clientKey!: string;
+}
+
+export class HistoryQueryDto {
+  @ApiPropertyOptional({ description: 'Return messages newer than this message id (gap fill after reconnect)' })
+  @IsOptional()
+  @IsString()
+  afterId?: string;
+
+  @ApiPropertyOptional({ default: 50, minimum: 1, maximum: 100 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+}
