@@ -40,7 +40,7 @@ struct OfferSheet: View {
                         dismiss()
                     }
                     .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
                 } footer: {
                     Text(listing.kind == .request ? "The neighbour can accept or decline. Payment happens in the app once they accept." : "The seller can accept or decline. You only pay after they accept.")
                 }

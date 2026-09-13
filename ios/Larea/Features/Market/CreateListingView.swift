@@ -1,11 +1,13 @@
 import PhotosUI
 import SwiftUI
 
-/// Post something to sell or a request for paid help, placed at the current location.
+/// Post something to sell or a request for paid help, placed at the current location; with `editing`
+/// set, the same form changes an existing listing (kind and location stay as posted).
 struct CreateListingView: View {
     @Environment(AppEnvironment.self) private var env
     @Environment(\.dismiss) private var dismiss
     let config: MarketConfig
+    var editing: Listing? = nil
     let onCreated: (Listing) -> Void
     @State private var model: CreateListingViewModel?
     @State private var pickedItems: [PhotosPickerItem] = []
@@ -19,13 +21,18 @@ struct CreateListingView: View {
             Group {
                 if let model { form(model) } else { ProgressView() }
             }
-            .navigationTitle("New listing")
+            .navigationTitle(editing == nil ? "New listing" : "Edit listing")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) {
+                    // Leaving mid-upload would orphan photos and lose the form, so Cancel waits for the post to finish.
+                    Button("Cancel") { dismiss() }
+                        .disabled(model?.busy == true)
+                        .accessibilityIdentifier("market.create.cancel")
+                }
             }
         }
-        .onAppear { if model == nil { model = CreateListingViewModel(api: env.api, location: env.location, config: config) } }
+        .onAppear { if model == nil { model = CreateListingViewModel(api: env.api, location: env.location, config: config, editing: editing) } }
         .interactiveDismissDisabled(model?.busy == true)
     }
 
@@ -33,32 +40,23 @@ struct CreateListingView: View {
     private func form(_ model: CreateListingViewModel) -> some View {
         @Bindable var model = model
         List {
-            Section {
-                Picker("Kind", selection: $model.kind) {
-                    Text("Selling").tag(ListingKind.offer)
-                    Text("Looking for help").tag(ListingKind.request)
+            if !model.isEditing {
+                Section {
+                    Picker("Kind", selection: $model.kind) {
+                        Text("Selling").tag(ListingKind.offer)
+                        Text("Looking for help").tag(ListingKind.request)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("market.create.kind")
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                 }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("market.create.kind")
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
             }
             Section("Photos") {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: Spacing.s) {
                         ForEach(model.photos) { photo in
-                            Image(uiImage: photo.preview)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 84, height: 84)
-                                .clipShape(RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
-                                .overlay(alignment: .topTrailing) {
-                                    Button { model.removePhoto(photo.id) } label: {
-                                        Image(systemName: "xmark").font(.caption2.weight(.bold)).foregroundStyle(.white).frame(width: 22, height: 22).background(.black.opacity(0.6), in: Circle())
-                                    }
-                                    .padding(4)
-                                    .accessibilityLabel("Remove photo")
-                                }
+                            PhotoThumb(photo: photo) { model.removePhoto(photo.id) }
                         }
                         if model.canAddPhoto {
                             Menu {
@@ -114,9 +112,9 @@ struct CreateListingView: View {
                 }
             }
             Section {
-                NoteCard(symbol: "location.fill", text: "Listed at your current location. Others see an approximate position, never the exact spot.")
+                NoteCard(symbol: "location.fill", text: model.isEditing ? "The listing stays where you posted it. Cancel it and post again to move it." : "Listed at your current location. Others see an approximate position, never the exact spot.")
                     .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                 if attempted, let problem = model.problem {
                     InlineError(text: problem).listRowBackground(Color.clear)
                 }
@@ -127,7 +125,7 @@ struct CreateListingView: View {
                     HStack(spacing: Spacing.s) { ProgressView(); Text(progress).font(.subheadline).foregroundStyle(.secondary) }
                         .listRowBackground(Color.clear)
                 }
-                PrimaryButton(title: model.kind == .request ? "Post request" : "Post listing", isLoading: model.busy, identifier: "market.submit") {
+                PrimaryButton(title: model.isEditing ? "Save changes" : (model.kind == .request ? "Post request" : "Post listing"), isLoading: model.busy, identifier: "market.submit") {
                     attempted = true
                     guard model.problem == nil else { return }
                     Task {
@@ -135,7 +133,7 @@ struct CreateListingView: View {
                     }
                 }
                 .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 16, trailing: 16))
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 16, trailing: 0))
             }
         }
         .listStyle(.insetGrouped)
@@ -158,5 +156,37 @@ struct CreateListingView: View {
             }
         }
         .fullScreenCover(isPresented: $showCamera) { CameraPicker(onImage: { model.addPhoto($0) }).ignoresSafeArea() }
+    }
+}
+
+/// One 84 pt square in the photo strip: a local preview or the listing's existing photo, with a remove button.
+private struct PhotoThumb: View {
+    let photo: PickedPhoto
+    let onRemove: () -> Void
+
+    var body: some View {
+        thumb
+            .frame(width: 84, height: 84)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+            .overlay(alignment: .topTrailing) {
+                Button(action: onRemove) {
+                    Image(systemName: "xmark")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 22, height: 22)
+                        .background(.black.opacity(0.6), in: Circle())
+                }
+                .padding(4)
+                .accessibilityLabel("Remove photo")
+            }
+    }
+
+    @ViewBuilder
+    private var thumb: some View {
+        if let preview = photo.preview {
+            Image(uiImage: preview).resizable().aspectRatio(contentMode: .fill)
+        } else {
+            RemoteImage(url: photo.remote?.thumbURL)
+        }
     }
 }

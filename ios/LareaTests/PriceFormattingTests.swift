@@ -6,6 +6,14 @@ final class PriceFormattingTests: XCTestCase {
         text.replacingOccurrences(of: "\u{00A0}", with: " ").replacingOccurrences(of: "\u{202F}", with: " ")
     }
 
+    func testEditTextRoundTrips() {
+        XCTAssertEqual(Money.editText(cents: 1250, locale: Locale(identifier: "de_DE")), "12,50")
+        XCTAssertEqual(Money.editText(cents: 5000, locale: Locale(identifier: "de_DE")), "50")
+        XCTAssertEqual(Money.editText(cents: 123_456, locale: Locale(identifier: "en_US")), "1234.56")
+        XCTAssertEqual(Money.parse(Money.editText(cents: 1250, locale: Locale(identifier: "de_DE"))), 1250)
+        XCTAssertEqual(Money.parse(Money.editText(cents: 123_456, locale: Locale(identifier: "en_US"))), 123_456)
+    }
+
     func testFormatsInTheGivenLocale() {
         XCTAssertEqual(plain(Money.format(cents: 1250, locale: Locale(identifier: "de_DE"))), "12,50 €")
         XCTAssertEqual(plain(Money.format(cents: 5000, locale: Locale(identifier: "de_DE"))), "50 €")

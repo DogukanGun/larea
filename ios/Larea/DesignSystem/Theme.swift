@@ -16,6 +16,8 @@ enum Spacing {
     static let l: CGFloat = 16
     static let xl: CGFloat = 24
     static let xxl: CGFloat = 32
+    /// Horizontal margin from the screen edge, shared by every screen, list and panel (matches the system inset-grouped list).
+    static let screen: CGFloat = 16
 }
 
 enum Radius {

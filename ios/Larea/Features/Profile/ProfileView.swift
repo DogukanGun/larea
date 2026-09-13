@@ -42,19 +42,19 @@ struct ProfileView: View {
                 }
                 .padding(.vertical, Spacing.s)
                 .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
             }
 
             Section("Display name") {
                 LareaField(label: "Shown to people in chats", text: $name, placeholder: "Display name", error: nameError, contentType: .nickname, submitLabel: .done, focus: $focus, field: .displayName)
-                    .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 12, trailing: 20))
+                    .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 0))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                 PrimaryButton(title: "Save", isLoading: model.busy, isEnabled: nameError == nil && name.trimmingCharacters(in: .whitespaces) != current) {
                     focus = nil
                     Task { await model.saveDisplayName(name) }
                 }
-                .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 12, trailing: 20))
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 12, trailing: 0))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             }

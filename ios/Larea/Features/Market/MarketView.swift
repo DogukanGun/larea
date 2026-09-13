@@ -145,7 +145,7 @@ struct MarketView: View {
             .padding(.vertical, 10)
             .background(.bar, in: Capsule())
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, Spacing.screen)
         .padding(.top, 8)
         .padding(.bottom, 4)
     }
@@ -206,7 +206,7 @@ struct MarketView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(20)
+        .padding(Spacing.screen)
     }
 
     @ViewBuilder

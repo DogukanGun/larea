@@ -4,8 +4,10 @@ enum PanelDetent: Hashable, CaseIterable {
     case small, medium, large
 }
 
-/// A draggable card pinned to the bottom of its container, above the tab bar. The header strip
-/// is the drag surface; the content (usually a List) scrolls on its own.
+/// A draggable card pinned to the bottom of its container. Its background is the same grouped
+/// colour as every list screen and continues under the floating tab bar, so the bar sits on one
+/// uniform surface instead of on a seam between the panel and the map. The header strip is the
+/// drag surface; the content (usually a List) scrolls on its own.
 struct BottomPanel<Header: View, Content: View>: View {
     @Binding var detent: PanelDetent
     @ViewBuilder let header: () -> Header
@@ -43,8 +45,12 @@ struct BottomPanel<Header: View, Content: View>: View {
                 content()
             }
             .frame(width: geo.size.width, height: height, alignment: .top)
-            .background(.regularMaterial, in: UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24, style: .continuous))
-            .shadow(color: .black.opacity(0.12), radius: 12, y: -2)
+            .background {
+                UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24, style: .continuous)
+                    .fill(Color(.systemGroupedBackground))
+                    .shadow(color: .black.opacity(0.12), radius: 12, y: -2)
+                    .ignoresSafeArea(edges: .bottom)
+            }
             .frame(maxHeight: .infinity, alignment: .bottom)
             .animation(reduceMotion ? nil : .spring(duration: 0.35), value: detent)
             .animation(reduceMotion ? nil : .interactiveSpring(), value: dragOffset)

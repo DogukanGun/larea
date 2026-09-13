@@ -6,6 +6,7 @@ import Observation
 final class ListingDetailViewModel {
     let listingId: String
     var listing: Listing?
+    var config = MarketConfig()
     var loading = true
     var busy = false
     var tooFar = false
@@ -34,6 +35,7 @@ final class ListingDetailViewModel {
             listing = try await api.send(APIRequest(.GET, "market/listings/\(listingId)", query: query))
             tooFar = false
             error = nil
+            if listing?.mine == true, let fetched: MarketConfig = try? await api.send(APIRequest(.GET, "market/config")) { config = fetched }
         } catch {
             if (error as? APIError)?.code == "TOO_FAR" { tooFar = true } else { self.error = error.userMessage }
         }

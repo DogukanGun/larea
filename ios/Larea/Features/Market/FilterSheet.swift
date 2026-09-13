@@ -26,7 +26,7 @@ struct FilterSheet: View {
                         FilterChip(title: "Help wanted", symbol: "hands.and.sparkles.fill", selected: draft.kind == .request) { draft.kind = .request }
                     }
                     .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                 }
                 Section("Category") {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: Spacing.s) {
@@ -36,7 +36,7 @@ struct FilterSheet: View {
                         }
                     }
                     .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                 }
                 Section("Price") {
                     HStack {

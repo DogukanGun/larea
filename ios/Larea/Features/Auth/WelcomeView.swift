@@ -49,7 +49,7 @@ struct WelcomeView: View {
                 SecondaryButton(title: "Sign in", identifier: "welcome.signin", action: onSignIn)
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, Spacing.screen)
         .padding(.bottom, Spacing.xl)
         .background(Color(.systemBackground))
         .toolbar(.hidden, for: .navigationBar)

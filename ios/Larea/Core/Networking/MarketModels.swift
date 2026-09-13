@@ -412,6 +412,15 @@ struct CreateListingRequest: Encodable, Sendable {
     let mocked: Bool?
 }
 
+/// Edits keep the kind and the location; photos are the full list in order (kept ids plus new upload ids).
+struct UpdateListingRequest: Encodable, Sendable {
+    let title: String
+    let description: String
+    let category: String
+    let priceCents: Int
+    let mediaIds: [String]
+}
+
 struct CreateOfferRequest: Encodable, Sendable {
     let amountCents: Int
     let note: String?

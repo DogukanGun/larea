@@ -525,7 +525,7 @@ private struct RemovedSheet: View {
             Spacer()
             PrimaryButton(title: "Back to nearby chats", action: onDone)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, Spacing.screen)
         .padding(.bottom, Spacing.xl)
     }
 }

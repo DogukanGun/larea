@@ -145,7 +145,7 @@ struct NearbyView: View {
             .background(.bar, in: Capsule())
             Spacer()
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, Spacing.screen)
         .padding(.top, 8)
     }
 
@@ -317,6 +317,6 @@ private struct VenueCard: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(20)
+        .padding(Spacing.screen)
     }
 }

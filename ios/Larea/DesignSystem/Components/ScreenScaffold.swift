@@ -17,7 +17,7 @@ struct ScreenScaffold<Hero: View, Content: View>: View {
                 }
                 content
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, Spacing.screen)
             .padding(.bottom, Spacing.xxl)
         }
         .scrollDismissesKeyboard(.interactively)

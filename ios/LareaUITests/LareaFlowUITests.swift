@@ -110,6 +110,24 @@ final class LareaFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["UI test desk lamp"].waitForExistence(timeout: 30), "the new listing did not open")
         sleep(1)
         snapshot(app, "06c-market-listing")
+
+        // Owners can edit: the same form comes back pre-filled and saves through PATCH.
+        app.buttons["market.listing.menu"].tap()
+        let editEntry = app.buttons["Edit listing"]
+        XCTAssertTrue(editEntry.waitForExistence(timeout: 5), "the owner menu has no Edit entry")
+        editEntry.tap()
+        let editTitle = app.textFields["market.create.title"]
+        XCTAssertTrue(editTitle.waitForExistence(timeout: 10))
+        XCTAssertEqual(editTitle.value as? String, "UI test desk lamp", "the edit form is not pre-filled")
+        editTitle.tap()
+        editTitle.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 20) + "UI test desk lamp v2")
+        snapshot(app, "06d-market-edit")
+        let save = app.buttons["market.submit"]
+        if !save.isHittable { app.swipeUp() }
+        save.tap()
+        XCTAssertTrue(app.staticTexts["UI test desk lamp v2"].waitForExistence(timeout: 30), "the edited title did not show up")
+        sleep(1)
+        snapshot(app, "06e-market-edited")
         app.tabBars.buttons["Nearby"].tap()
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "nearby.root").firstMatch.waitForExistence(timeout: 15))
 

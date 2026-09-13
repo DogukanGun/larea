@@ -7,6 +7,12 @@ enum Money {
         return amount.formatted(.currency(code: currency.uppercased()).precision(.fractionLength(cents % 100 == 0 ? 0 : 2)).locale(locale))
     }
 
+    /// Plain digits for a price field ("12" or "12,50" in de_DE), without currency or grouping, so `parse` reads it back.
+    static func editText(cents: Int, locale: Locale = .current) -> String {
+        let amount = Decimal(cents) / 100
+        return amount.formatted(.number.precision(.fractionLength(cents % 100 == 0 ? 0 : 2)).grouping(.never).locale(locale))
+    }
+
     /// Accepts "12", "12,50", "12.50", "€ 7"; nil when empty, negative or unparseable.
     static func parse(_ text: String, locale: Locale = .current) -> Int? {
         var cleaned = text.replacingOccurrences(of: "[^0-9.,]", with: "", options: .regularExpression)

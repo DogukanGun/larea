@@ -104,7 +104,7 @@ struct OrderDetailView: View {
                 }
                 timeline(order)
             }
-            .padding(20)
+            .padding(Spacing.screen)
         }
         .background(Color(.systemGroupedBackground))
         .safeAreaInset(edge: .bottom) { actions(order, role: role, model: model) }
@@ -124,7 +124,7 @@ struct OrderDetailView: View {
                     }
                     Spacer()
                 }
-                .padding(20)
+                .padding(Spacing.screen)
                 .navigationTitle("Confirm handover")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showCode = false } } }
@@ -194,7 +194,7 @@ struct OrderDetailView: View {
                     SecondaryButton(title: action.title, identifier: "market.order.cancel") { confirmCancel = true }
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, Spacing.screen)
             .padding(.vertical, Spacing.m)
             .background(.bar)
         }

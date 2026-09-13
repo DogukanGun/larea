@@ -12,6 +12,7 @@ struct ListingDetailView: View {
     @State private var confirmCancel = false
     @State private var viewing: ImageAttachment?
     @State private var showPayouts = false
+    @State private var showEdit = false
 
     var body: some View {
         Group {
@@ -112,7 +113,7 @@ struct ListingDetailView: View {
                     }
                 }
             }
-            .padding(20)
+            .padding(Spacing.screen)
         }
         .background(Color(.systemGroupedBackground))
         .safeAreaInset(edge: .bottom) { actions(listing, model: model) }
@@ -120,6 +121,9 @@ struct ListingDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     if listing.mine {
+                        if listing.status == .active {
+                            Button("Edit listing", systemImage: "pencil") { showEdit = true }
+                        }
                         if listing.status == .active || listing.status == .reserved {
                             Button("Mark as sold", systemImage: "checkmark.seal") { confirmSold = true }
                         }
@@ -138,6 +142,14 @@ struct ListingDetailView: View {
         .sheet(isPresented: $showOffer) {
             OfferSheet(listing: listing) { amount, note in Task { await model.makeOffer(amountCents: amount, note: note) } }
                 .presentationDetents([.large])
+        }
+        .sheet(isPresented: $showEdit) {
+            CreateListingView(config: model.config, editing: listing) { updated in
+                showEdit = false
+                model.listing = updated
+                if let notice = updated.notice { model.notice = notice }
+                Task { await model.load() }
+            }
         }
         .sheet(isPresented: $showReport) {
             ReportSheet(onReport: { reason in
@@ -184,7 +196,8 @@ struct ListingDetailView: View {
                 Text("This listing is \(listing.status.label.lowercased()).").font(.caption).foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, Spacing.screen)
         .padding(.vertical, Spacing.m)
         .background(.bar)
     }
