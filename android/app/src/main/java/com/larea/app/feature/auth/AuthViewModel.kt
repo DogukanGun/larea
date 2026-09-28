@@ -3,8 +3,7 @@ package com.larea.app.feature.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.larea.app.core.auth.SessionRepository
-import com.larea.app.core.network.ApiException
-import com.larea.app.core.network.NetworkException
+import com.larea.app.core.network.userMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,8 +32,3 @@ class AuthViewModel @Inject constructor(private val sessions: SessionRepository)
     }
 }
 
-fun Throwable.userMessage(): String = when (this) {
-    is ApiException -> message
-    is NetworkException -> "Can't reach Larea. Check your connection and try again."
-    else -> message ?: "Something went wrong."
-}

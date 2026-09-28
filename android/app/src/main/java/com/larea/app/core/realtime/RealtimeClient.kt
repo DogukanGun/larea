@@ -28,7 +28,6 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.math.min
 
 private const val TAG = "Realtime"
 private const val CLOSE_UNAUTHORIZED = 4401
@@ -49,7 +48,7 @@ class RealtimeClient(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _state = MutableStateFlow(ConnectionState.Disconnected)
     val state: StateFlow<ConnectionState> = _state
-    private val _events = MutableSharedFlow<ServerEvent>(extraBufferCapacity = 64)
+    private val _events = MutableSharedFlow<ServerEvent>(extraBufferCapacity = 256)
     val events: SharedFlow<ServerEvent> = _events
 
     private var socket: WebSocket? = null
@@ -141,7 +140,7 @@ class RealtimeClient(
                     _state.value = ConnectionState.Disconnected
                     if (!wanted) return
                     attempt++
-                    delay(min(30_000L, 1_000L shl min(attempt, 5)))
+                    delay(reconnectDelayMs(attempt))
                 }
             }
         }
@@ -158,16 +157,7 @@ class RealtimeClient(
             _state.value = ConnectionState.Connected
         }
 
-        override fun onMessage(webSocket: WebSocket, text: String) {
-            val event = runCatching { json.decodeFromString(ServerEvent.serializer(), text) }.getOrElse {
-                Log.w(TAG, "unparseable event: ${it.message}")
-                return
-            }
-            if (event is ServerEvent.Ack && event.reqId != null) {
-                pending.remove(event.reqId)?.complete(event)
-            }
-            _events.tryEmit(event)
-        }
+        override fun onMessage(webSocket: WebSocket, text: String) = ingest(text)
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
             failPending("closed")
@@ -190,6 +180,18 @@ class RealtimeClient(
                 },
             )
         }
+    }
+
+    /** Decodes one frame and hands it to every listener; unknown or broken frames are dropped. */
+    internal fun ingest(text: String) {
+        val event = runCatching { json.decodeFromString(ServerEvent.serializer(), text) }.getOrElse {
+            runCatching { Log.w(TAG, "dropped event: ${it.message}") }
+            return
+        }
+        if (event is ServerEvent.Ack && event.reqId != null) {
+            pending.remove(event.reqId)?.complete(event)
+        }
+        _events.tryEmit(event)
     }
 
     private fun failPending(reason: String) {

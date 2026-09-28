@@ -1,6 +1,7 @@
 package com.larea.app.core.realtime
 
 import com.larea.app.core.network.ChatMessage
+import com.larea.app.core.network.PollView
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
@@ -33,6 +34,15 @@ sealed class ServerEvent {
     data class Presence(val venueId: String, val count: Int) : ServerEvent()
 
     @Serializable
+    @SerialName("poll_update")
+    data class PollUpdate(val venueId: String, val messageId: String, val poll: PollView) : ServerEvent()
+
+    /** Thin notice to the people involved in a listing; refetch `/market/me` or the order. */
+    @Serializable
+    @SerialName("market_update")
+    data class MarketUpdate(val kind: String, val listingId: String, val offerId: String? = null, val orderId: String? = null) : ServerEvent()
+
+    @Serializable
     @SerialName("pong")
     data class Pong(val reqId: String? = null) : ServerEvent()
 
@@ -45,3 +55,6 @@ sealed class ServerEvent {
 data class HeartbeatAck(val ok: Boolean, val state: String?, val removed: Boolean, val reason: String?)
 
 enum class ConnectionState { Disconnected, Connecting, Connected, Suspended }
+
+/** Reconnect delay for the given attempt (1 s, 2 s, 4 s, … capped at 30 s), same schedule as iOS. */
+fun reconnectDelayMs(attempt: Int): Long = minOf(30_000L, 1_000L shl minOf(maxOf(attempt - 1, 0), 5))

@@ -84,7 +84,7 @@ fun LareaApp(verificationReturns: SharedFlow<Unit>) {
     NavHost(navController = nav, startDestination = Routes.SIGN_IN) {
         composable(Routes.SIGN_IN) { SignInScreen(onCreateAccount = { nav.navigate(Routes.SIGN_UP) }) }
         composable(Routes.SIGN_UP) { SignUpScreen(onHaveAccount = { nav.popBackStack() }) }
-        composable(Routes.VERIFY) { VerificationScreen(returns = verificationReturns, onVerified = { root.refreshMe() }) }
+        composable(Routes.VERIFY) { VerificationScreen() }
         composable(Routes.LOCATION) { LocationPermissionScreen(onGranted = { root.refreshPermission() }) }
         composable(Routes.SUSPENDED) { SuspendedScreen() }
         composable(Routes.NEARBY) {

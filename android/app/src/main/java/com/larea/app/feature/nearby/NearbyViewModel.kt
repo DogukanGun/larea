@@ -8,7 +8,7 @@ import com.larea.app.core.network.LareaApi
 import com.larea.app.core.network.LocationFixBody
 import com.larea.app.core.network.NearbyVenue
 import com.larea.app.core.network.apiCall
-import com.larea.app.feature.auth.userMessage
+import com.larea.app.core.network.userMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow

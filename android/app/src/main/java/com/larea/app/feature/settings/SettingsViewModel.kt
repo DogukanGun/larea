@@ -7,7 +7,7 @@ import com.larea.app.core.network.BlockedUser
 import com.larea.app.core.network.LareaApi
 import com.larea.app.core.network.MeView
 import com.larea.app.core.network.apiCall
-import com.larea.app.feature.auth.userMessage
+import com.larea.app.core.network.userMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

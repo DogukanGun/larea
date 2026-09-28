@@ -16,7 +16,7 @@ import com.larea.app.core.network.apiCall
 import com.larea.app.core.realtime.ConnectionState
 import com.larea.app.core.realtime.RealtimeClient
 import com.larea.app.core.realtime.ServerEvent
-import com.larea.app.feature.auth.userMessage
+import com.larea.app.core.network.userMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -182,7 +182,7 @@ class ChatViewModel @Inject constructor(
         val pending = PendingMessage(UUID.randomUUID().toString(), trimmed)
         _state.update { it.copy(pending = it.pending + pending) }
         viewModelScope.launch {
-            apiCall { api.send(venueId, SendMessageRequest(trimmed, pending.clientKey)) }
+            apiCall { api.send(venueId, SendMessageRequest.text(trimmed, pending.clientKey)) }
                 .onSuccess { res ->
                     res.message?.let(::addMessage)
                     res.notice?.let { _events.tryEmit(ChatEvent.Notice(it)) }

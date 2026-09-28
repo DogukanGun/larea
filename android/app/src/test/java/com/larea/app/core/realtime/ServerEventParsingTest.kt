@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ServerEventParsingTest {
-    private val json = Json { ignoreUnknownKeys = true; explicitNulls = false; classDiscriminator = "type" }
+    private val json = com.larea.app.core.network.LareaJson
 
     private fun parse(text: String): ServerEvent = json.decodeFromString(ServerEvent.serializer(), text)
 
@@ -34,6 +34,15 @@ class ServerEventParsingTest {
 
         val presence = parse("""{"type":"presence","venueId":"v1","count":7}""") as ServerEvent.Presence
         assertEquals(7, presence.count)
+
+        val poll = parse("""{"type":"poll_update","venueId":"v1","messageId":"m9","poll":{"id":"p1","question":"Pizza?","options":[{"id":"o1","text":"Yes","votes":2},{"id":"o2","text":"No","votes":1}],"totalVotes":3,"closed":false,"closesAt":null}}""") as ServerEvent.PollUpdate
+        assertEquals("m9", poll.messageId)
+        assertEquals(listOf(2, 1), poll.poll.options.map { it.votes })
+
+        val market = parse("""{"type":"market_update","kind":"offer_received","listingId":"l1","offerId":"o1"}""") as ServerEvent.MarketUpdate
+        assertEquals("offer_received", market.kind)
+        assertEquals("o1", market.offerId)
+        assertEquals(null, market.orderId)
 
         assertTrue(parse("""{"type":"pong","reqId":"r2"}""") is ServerEvent.Pong)
         val error = parse("""{"type":"error","reqId":"r3","code":"BAD_MESSAGE","message":"x"}""") as ServerEvent.Error

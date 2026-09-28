@@ -11,6 +11,7 @@ class ApiException(
     val status: Int,
     val mutedUntil: String? = null,
     val retryAfterSec: Int? = null,
+    val suspendedAt: String? = null,
 ) : Exception(message)
 
 /** The backend could not be reached. */
@@ -29,10 +30,26 @@ fun Throwable.toApiFailure(): Exception = when (this) {
             status = code(),
             mutedUntil = parsed?.mutedUntil,
             retryAfterSec = parsed?.retryAfterSec,
+            suspendedAt = parsed?.suspendedAt,
         )
     }
     is IOException -> NetworkException(this)
+    is kotlinx.serialization.SerializationException -> DecodingException(this)
     else -> Exception(message ?: "Unexpected error", this)
+}
+
+/** The response did not have the expected shape. */
+class DecodingException(cause: Throwable) : Exception("decoding", cause)
+
+/** The API error code, when this is a structured backend error. */
+val Throwable.apiCode: String? get() = (this as? ApiException)?.code
+
+/** Text to show the user for any failure (same copy as iOS `APIError`). */
+fun Throwable.userMessage(): String = when (this) {
+    is ApiException -> message
+    is NetworkException -> "Can't reach Larea. Check your connection and try again."
+    is DecodingException -> "Unexpected response from the server."
+    else -> message ?: "Something went wrong."
 }
 
 /** Runs an API call and normalises failures into ApiException / NetworkException. */
