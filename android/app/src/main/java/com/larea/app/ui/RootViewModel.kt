@@ -9,6 +9,7 @@ import com.larea.app.core.network.MeView
 import com.larea.app.core.media.ImageUploader
 import com.larea.app.core.realtime.RealtimeClient
 import com.larea.app.feature.chat.ChatSessionFactory
+import com.larea.app.feature.deals.DealsStore
 import com.larea.app.ui.navigation.AppRouter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +39,7 @@ class RootViewModel @Inject constructor(
     val router: AppRouter,
     val chats: ChatSessionFactory,
     val uploader: ImageUploader,
+    val deals: DealsStore,
 ) : ViewModel() {
     private val permission = MutableStateFlow(location.permission())
 
@@ -74,6 +76,7 @@ class RootViewModel @Inject constructor(
     }
 
     fun mainHidden() {
+        deals.stop()
         router.reset()
         realtime.disconnect()
     }

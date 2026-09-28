@@ -37,18 +37,31 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import com.larea.app.feature.chat.ChatScreen
+import com.larea.app.feature.deals.DealsScreen
+import com.larea.app.feature.deals.OrderDetailScreen
+import com.larea.app.feature.market.ListingDetailScreen
+import com.larea.app.feature.market.MarketScreen
 import com.larea.app.feature.nearby.NearbyScreen
+import com.larea.app.feature.payouts.PayoutsScreen
+import com.larea.app.feature.profile.MyListingsScreen
+import com.larea.app.feature.profile.ProfileScreen
 import com.larea.app.ui.navigation.AppTab
 import com.larea.app.ui.navigation.ChatRoute
 import com.larea.app.ui.navigation.DealsGraph
 import com.larea.app.ui.navigation.DealsHome
+import com.larea.app.ui.navigation.DealsListing
+import com.larea.app.ui.navigation.DealsOrder
 import com.larea.app.ui.navigation.MarketGraph
 import com.larea.app.ui.navigation.MarketHome
+import com.larea.app.ui.navigation.MarketListing
 import com.larea.app.ui.navigation.NavRequest
 import com.larea.app.ui.navigation.NearbyGraph
 import com.larea.app.ui.navigation.NearbyHome
 import com.larea.app.ui.navigation.ProfileGraph
 import com.larea.app.ui.navigation.ProfileHome
+import com.larea.app.ui.navigation.ProfileListing
+import com.larea.app.ui.navigation.ProfileMyListings
+import com.larea.app.ui.navigation.ProfilePayouts
 import com.larea.app.ui.theme.Larea
 import com.larea.app.ui.theme.LareaType
 
@@ -74,7 +87,10 @@ fun MainScaffold(root: RootViewModel) {
     val backStack by nav.currentBackStackEntryAsState()
     val destination = backStack?.destination
     val inChat = destination?.hasRoute<ChatRoute>() == true
-    val dealsBadge = 0
+    val deals by root.deals.state.collectAsStateWithLifecycle()
+    val market = me?.capabilities?.market == true
+    val dealsBadge = if (market) deals.attentionCount else 0
+    LaunchedEffect(market) { if (market) root.deals.start() else root.deals.stop() }
 
     DisposableEffect(Unit) {
         root.mainShown()
@@ -144,21 +160,49 @@ fun MainScaffold(root: RootViewModel) {
                 }
             }
             navigation<MarketGraph>(startDestination = MarketHome) {
-                composable<MarketHome> { Box(Modifier.padding(PaddingValues(bottom = bottomInset))) { ComingSoon("Market") } }
+                composable<MarketHome> {
+                    MarketScreen(marketEnabled = market, onOpenListing = { nav.navigate(MarketListing(it)) }, bottomInset = bottomInset)
+                }
+                composable<MarketListing> {
+                    ListingDetailScreen(onBack = { nav.popBackStack() }, onOpenOrder = { router.open(AppTab.Deals, DealsOrder(it)) }, bottomInset = bottomInset)
+                }
             }
             navigation<DealsGraph>(startDestination = DealsHome) {
-                composable<DealsHome> { Box(Modifier.padding(PaddingValues(bottom = bottomInset))) { ComingSoon("Deals") } }
+                composable<DealsHome> {
+                    DealsScreen(
+                        store = root.deals,
+                        marketEnabled = market,
+                        onOpenOrder = { nav.navigate(DealsOrder(it)) },
+                        onOpenListing = { nav.navigate(DealsListing(it)) },
+                        bottomInset = bottomInset,
+                    )
+                }
+                composable<DealsOrder> {
+                    OrderDetailScreen(onBack = { nav.popBackStack() }, onOpenListing = { nav.navigate(DealsListing(it)) }, bottomInset = bottomInset)
+                }
+                composable<DealsListing> {
+                    ListingDetailScreen(onBack = { nav.popBackStack() }, onOpenOrder = { nav.navigate(DealsOrder(it)) }, bottomInset = bottomInset)
+                }
             }
             navigation<ProfileGraph>(startDestination = ProfileHome) {
-                composable<ProfileHome> { Box(Modifier.padding(PaddingValues(bottom = bottomInset))) { ComingSoon("Profile") } }
+                composable<ProfileHome> {
+                    ProfileScreen(onPayouts = { nav.navigate(ProfilePayouts) }, onMyListings = { nav.navigate(ProfileMyListings) }, bottomInset = bottomInset)
+                }
+                composable<ProfilePayouts> { Box(Modifier.padding(PaddingValues(bottom = bottomInset))) { PayoutsScreen(onBack = { nav.popBackStack() }) } }
+                composable<ProfileMyListings> {
+                    MyListingsScreen(
+                        onBack = { nav.popBackStack() },
+                        onOpenListing = { nav.navigate(ProfileListing(it)) },
+                        onGoToMarket = { selectTab(nav, AppTab.Market); router.selectTab(AppTab.Market) },
+                        bottomInset = bottomInset,
+                    )
+                }
+                composable<ProfileListing> {
+                    ListingDetailScreen(onBack = { nav.popBackStack() }, onOpenOrder = { router.open(AppTab.Deals, DealsOrder(it)) }, bottomInset = bottomInset)
+                }
             }
         }
     }
-}
-
-@Composable
-private fun ComingSoon(title: String) {
-    com.larea.app.ui.components.EmptyState(Icons.Filled.Storefront, title, description = "Coming soon.")
 }
 
 private fun selectTab(nav: NavHostController, tab: AppTab) {

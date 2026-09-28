@@ -34,7 +34,8 @@ object Dates {
         val past = diffSec < 0
         val s = abs(diffSec)
         val text = when {
-            s < 60 -> return if (past) "just now" else "in a moment"
+            // Within a minute either way reads "just now": device and server clocks are rarely in sync.
+            s < 60 -> return "just now"
             s < 3600 -> "${s / 60} min"
             s < 86_400 -> "${s / 3600} h"
             s < 86_400 * 7 -> (s / 86_400).let { "$it ${if (it == 1L) "day" else "days"}" }
