@@ -30,7 +30,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production exec postgr
 
 ## Age assurance on devices
 
-The apps forward the operating system's age range (Apple Declared Age Range, Google Play Age Signals) to `POST /verification/platform`; nothing but platform, declaration kind and pass/fail is stored. iOS device builds need the Declared Age Range capability enabled for the App ID `com.dogukangundogan.larea` in the Apple Developer account (the entitlement is already in `ios/Larea/Larea.entitlements`). On a simulator the prompt reports "not available", so simulator testing uses a local backend started with `NODE_ENV=test` and the debug-only launch argument `-LareaTestAgePass 1`. Known limitation: the signal is attested by the app, not by a server-verified token; App Attest / Play Integrity is the planned hardening.
+The apps forward the operating system's age range (Apple Declared Age Range, Google Play Age Signals) to `POST /verification/platform`; nothing but platform, declaration kind and pass/fail is stored. Play Age Signals only returns a range where the law requires it, so where Google has no answer the Android app lets the user confirm 18+ themselves (`platform: "self"`, stored as provider `self-declared`). iOS device builds need the Declared Age Range capability enabled for the App ID `com.dogukangundogan.larea` in the Apple Developer account (the entitlement is already in `ios/Larea/Larea.entitlements`). On a simulator the prompt reports "not available", so simulator testing uses a local backend started with `NODE_ENV=test` and the debug-only launch argument `-LareaTestAgePass 1`. Known limitation: the signal is attested by the app, not by a server-verified token; App Attest / Play Integrity is the planned hardening.
 
 ## Apps
 

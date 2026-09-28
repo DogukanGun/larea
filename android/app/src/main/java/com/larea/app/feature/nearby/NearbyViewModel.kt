@@ -9,30 +9,66 @@ import com.larea.app.core.network.LocationFixBody
 import com.larea.app.core.network.NearbyVenue
 import com.larea.app.core.network.apiCall
 import com.larea.app.core.network.userMessage
+import com.larea.app.ui.map.MapViewport
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.math.abs
+import kotlin.math.asin
+import kotlin.math.cos
+import kotlin.math.max
+import kotlin.math.sin
+import kotlin.math.sqrt
+
+/** Wider than this the server only returns landmarks; cafés need a closer look. */
+const val CAFE_RADIUS_M = 1500.0
+const val MIN_VIEW_RADIUS_M = 300.0
+const val MAX_VIEW_RADIUS_M = 12_000.0
 
 data class NearbyUiState(
-    val locating: Boolean = true,
-    val loading: Boolean = false,
     val venues: List<NearbyVenue> = emptyList(),
+    val loading: Boolean = false,
+    val locating: Boolean = true,
     val joining: String? = null,
     val error: String? = null,
-)
+    val notice: String? = null,
+    val degraded: Boolean = false,
+    /** The server is still discovering places for this area. */
+    val discovering: Boolean = false,
+    val attribution: String = "Place data © OpenStreetMap contributors",
+    val selectedId: String? = null,
+    val viewport: MapViewport? = null,
+    val fix: Fix? = null,
+) {
+    val selectedVenue: NearbyVenue? get() = venues.firstOrNull { it.id == selectedId }
 
-sealed interface NearbyEvent {
-    data class Joined(val venueId: String, val venueName: String) : NearbyEvent
-    data class Message(val text: String) : NearbyEvent
+    /** True once the map has been panned away from the user's own surroundings. */
+    val viewingElsewhere: Boolean
+        get() {
+            val view = viewport ?: return false
+            val here = fix ?: return false
+            return distanceM(view.lat, view.lng, here.lat, here.lng) > max(1000.0, view.radiusM)
+        }
+
+    /** Wide view: only landmarks are shown, cafés appear after zooming in. */
+    val zoomedOut: Boolean get() = (viewport?.radiusM ?: 0.0) > CAFE_RADIUS_M
 }
 
+/** Haversine distance in metres. */
+fun distanceM(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
+    val dLat = Math.toRadians(lat2 - lat1)
+    val dLng = Math.toRadians(lng2 - lng1)
+    val a = sin(dLat / 2) * sin(dLat / 2) + cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLng / 2) * sin(dLng / 2)
+    return 2 * 6_371_000.0 * asin(sqrt(a))
+}
+
+/** Places around the user and wherever the map is looking; the server decides who may join. */
 @HiltViewModel
 class NearbyViewModel @Inject constructor(
     private val api: LareaApi,
@@ -40,50 +76,106 @@ class NearbyViewModel @Inject constructor(
 ) : ViewModel() {
     private val _state = MutableStateFlow(NearbyUiState())
     val state: StateFlow<NearbyUiState> = _state
-    private val _events = MutableSharedFlow<NearbyEvent>(extraBufferCapacity = 4)
-    val events: SharedFlow<NearbyEvent> = _events
 
-    @Volatile private var latestFix: Fix? = null
-    private var watcher: Job? = null
+    private var watch: Job? = null
+    private var fixes: Job? = null
+    private var lastRefreshFix: Fix? = null
+    private var lastRefreshViewport: MapViewport? = null
+    private var lastRefreshAt = 0L
+    private var pendingPolls = 0
 
     fun start() {
-        if (watcher?.isActive == true) return
-        watcher = viewModelScope.launch {
-            location.fixes(10_000L)
-                .catch { e -> _state.update { it.copy(locating = false, error = e.message) } }
-                .collect { fix ->
-                    val first = latestFix == null
-                    latestFix = fix
-                    if (first) refresh()
+        fixes?.cancel()
+        fixes = viewModelScope.launch { location.updates.collect { fix -> _state.update { it.copy(fix = fix) } } }
+        watch?.cancel()
+        watch = viewModelScope.launch {
+            while (isActive) {
+                val fix = location.latest.value
+                val s = _state.value
+                if (fix != null && (shouldRefresh(fix) || viewportMoved())) {
+                    pendingPolls = 0
+                    refresh()
+                } else if (s.discovering && pendingPolls < 40 && System.currentTimeMillis() - lastRefreshAt >= 3_000) {
+                    // Discovery runs on the server; poll until the area is covered.
+                    pendingPolls++
+                    refresh()
                 }
+                delay(1_000)
+            }
         }
     }
 
     fun stop() {
-        watcher?.cancel()
-        watcher = null
+        watch?.cancel()
+        fixes?.cancel()
+        watch = null
+        fixes = null
     }
 
-    fun refresh() {
-        val fix = latestFix ?: return
-        _state.update { it.copy(loading = true, locating = false, error = null) }
-        viewModelScope.launch {
-            apiCall { api.nearby(fix.lat, fix.lng, fix.accuracyM) }
-                .onSuccess { res -> _state.update { it.copy(loading = false, venues = res.venues) } }
-                .onFailure { e -> _state.update { it.copy(loading = false, error = e.userMessage()) } }
-        }
+    /** The map settled on a new camera position: fetch the places there. */
+    fun mapMoved(viewport: MapViewport) {
+        _state.update { it.copy(viewport = viewport.copy(radiusM = viewport.radiusM.coerceIn(MIN_VIEW_RADIUS_M, MAX_VIEW_RADIUS_M))) }
+        if (!viewportMoved() || _state.value.loading) return
+        pendingPolls = 0
+        viewModelScope.launch { refresh() }
     }
 
-    /** The server is the authority: always try to join and show its answer when refused. */
-    fun join(venue: NearbyVenue) {
-        val fix = latestFix ?: return
-        if (_state.value.joining != null) return
-        _state.update { it.copy(joining = venue.id) }
-        viewModelScope.launch {
-            apiCall { api.join(venue.id, LocationFixBody(fix.lat, fix.lng, fix.accuracyM, fix.mocked)) }
-                .onSuccess { _events.tryEmit(NearbyEvent.Joined(venue.id, venue.name)) }
-                .onFailure { e -> _events.tryEmit(NearbyEvent.Message(e.userMessage())) }
-            _state.update { it.copy(joining = null) }
-        }
+    fun select(id: String?) = _state.update { it.copy(selectedId = id) }
+
+    fun dismissNotice() = _state.update { it.copy(notice = null) }
+
+    /** The map moved by more than a third of its half-width, or zoomed by more than a third. */
+    private fun viewportMoved(): Boolean {
+        val view = _state.value.viewport ?: return false
+        val last = lastRefreshViewport ?: return true
+        return distanceM(view.lat, view.lng, last.lat, last.lng) > last.radiusM / 3 || abs(view.radiusM - last.radiusM) > last.radiusM / 3
+    }
+
+    /** Refresh when we move more than 250 m or every 60 s. */
+    private fun shouldRefresh(fix: Fix): Boolean {
+        val last = lastRefreshFix ?: return true
+        return distanceM(fix.lat, fix.lng, last.lat, last.lng) > 250 || System.currentTimeMillis() - lastRefreshAt > 60_000
+    }
+
+    suspend fun refresh() {
+        val fix = location.latest.value ?: return
+        if (_state.value.loading) return
+        _state.update { it.copy(loading = true, error = null) }
+        val view = _state.value.viewport
+        apiCall { api.nearby(fix.lat, fix.lng, fix.accuracyM, view?.lat, view?.lng, view?.radiusM?.let { Math.round(it).toInt() }) }
+            .onSuccess { response ->
+                _state.update { s ->
+                    s.copy(
+                        venues = response.venues,
+                        discovering = response.pending,
+                        degraded = response.degraded,
+                        attribution = response.attribution ?: s.attribution,
+                        selectedId = s.selectedId?.takeIf { id -> response.venues.any { it.id == id } },
+                    )
+                }
+                lastRefreshFix = fix
+                lastRefreshViewport = view
+                lastRefreshAt = System.currentTimeMillis()
+            }
+            .onFailure { e -> _state.update { it.copy(error = e.userMessage()) } }
+        _state.update { it.copy(locating = false, loading = false) }
+    }
+
+    fun refreshNow() {
+        viewModelScope.launch { refresh() }
+    }
+
+    /** The server decides; a refusal comes back with its own message ("You need to be closer…"). */
+    suspend fun join(venueId: String): Boolean {
+        val fix = location.latest.value ?: location.awaitFix() ?: return false
+        if (_state.value.joining != null) return false
+        _state.update { it.copy(joining = venueId) }
+        val result = apiCall { api.join(venueId, LocationFixBody(fix.lat, fix.lng, fix.accuracyM, fix.mocked)) }
+        _state.update { it.copy(joining = null, notice = result.exceptionOrNull()?.userMessage()) }
+        return result.isSuccess
+    }
+
+    override fun onCleared() {
+        stop()
     }
 }

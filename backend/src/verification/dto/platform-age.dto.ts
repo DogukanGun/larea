@@ -1,10 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
 
-export const AGE_PLATFORMS = ['apple', 'google'] as const;
+/** `self` is the user's own 18+ confirmation, used where the platform returns no age range (e.g. Play Age Signals outside the US). */
+export const AGE_PLATFORMS = ['apple', 'google', 'self'] as const;
 export const AGE_DECLARATIONS = ['self', 'guardian', 'confirmed', 'unknown'] as const;
 
-/** Result of the platform's age-range prompt (Apple Declared Age Range / Google Play Age Signals). */
+/** Result of the platform's age-range prompt (Apple Declared Age Range / Google Play Age Signals), or a self-declaration. */
 export class PlatformAgeDto {
   @ApiProperty({ enum: AGE_PLATFORMS })
   @IsIn(AGE_PLATFORMS)

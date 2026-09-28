@@ -26,9 +26,10 @@ android {
 
     buildTypes {
         debug {
-            // Android emulator → host machine
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:3000/\"")
-            buildConfigField("String", "WS_URL", "\"ws://10.0.2.2:3000/ws\"")
+            // Android emulator → host machine; override with -Plarea.devHost=10.0.2.2:3001 when 3000 is taken.
+            val devHost = providers.gradleProperty("larea.devHost").getOrElse("10.0.2.2:3000")
+            buildConfigField("String", "API_BASE_URL", "\"http://$devHost/\"")
+            buildConfigField("String", "WS_URL", "\"ws://$devHost/ws\"")
         }
         release {
             isMinifyEnabled = true
@@ -46,6 +47,8 @@ android {
 
     testOptions {
         unitTests.isIncludeAndroidResources = true
+        // Robolectric reaches into FileDescriptor internals on JDK 17+.
+        unitTests.all { it.jvmArgs("--add-opens=java.base/java.io=ALL-UNNAMED") }
     }
 
     packaging {

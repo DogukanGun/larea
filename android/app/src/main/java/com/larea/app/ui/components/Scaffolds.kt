@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.larea.app.ui.theme.Larea
@@ -187,3 +188,6 @@ fun RowDivider(modifier: Modifier = Modifier, inset: Int = 16) {
     HorizontalDivider(modifier.padding(start = inset.dp), color = Larea.colors.separator, thickness = 0.5.dp)
 }
 
+
+/** Popups, sheets and dialogs are separate windows: expose their test tags as resource ids too (UI tests, adb). */
+fun Modifier.exposeTestTags(): Modifier = semantics { testTagsAsResourceId = true }

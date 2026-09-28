@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { badRequest } from '../common/errors.js';
 import { PrismaService } from '../infra/prisma/prisma.service.js';
 import { UsersService } from '../users/users.service.js';
 import type { PlatformAgeDto } from './dto/platform-age.dto.js';
@@ -18,12 +19,14 @@ export interface PlatformAgeResult extends VerificationStatusView {
   reason: AgeOutcomeReason | null;
 }
 
-const PROVIDER_BY_PLATFORM = { apple: 'apple-declared-age-range', google: 'google-play-age-signals' } as const;
+const PROVIDER_BY_PLATFORM = { apple: 'apple-declared-age-range', google: 'google-play-age-signals', self: 'self-declared' } as const;
 
 /**
  * Age assurance from the operating system's age-range prompt. The app forwards the
  * platform's answer; the backend keeps only the platform, the declaration kind and
  * pass/fail. The signal is attested by the app, not by a server token (see docs).
+ * Where the platform has no answer, the user may declare 18+ themselves (platform `self`);
+ * it is stored under its own provider so moderators can tell those accounts apart.
  */
 @Injectable()
 export class VerificationService {
@@ -35,6 +38,9 @@ export class VerificationService {
   ) {}
 
   async recordPlatformSignal(userId: string, dto: PlatformAgeDto): Promise<PlatformAgeResult> {
+    if (dto.platform === 'self' && dto.declaration !== 'self') {
+      throw badRequest('VALIDATION', 'A self-declaration must use declaration "self".');
+    }
     const provider = PROVIDER_BY_PLATFORM[dto.platform];
     const reason: AgeOutcomeReason | null =
       dto.lowerBound === undefined ? (dto.declaration === 'unknown' ? 'declined' : 'unknown_age') : dto.lowerBound >= AGE_THRESHOLD ? null : 'under_age';

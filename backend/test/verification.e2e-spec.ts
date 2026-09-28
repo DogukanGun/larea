@@ -44,6 +44,19 @@ describe('age assurance from platform signals', () => {
     expect(nearby.body.code).toBe('AGE_VERIFICATION_REQUIRED');
   });
 
+  it('accepts a self-declaration where the platform has no answer and records it separately', async () => {
+    const user = await registerUser(ctx);
+    const res = await ctx.http().post('/verification/platform').set(auth(user)).send({ platform: 'self', lowerBound: 18, declaration: 'self' }).expect(200);
+    expect(res.body).toMatchObject({ verified: true, reason: null, lastOutcome: 'PASSED' });
+    const row = await ctx.prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    expect(row).toMatchObject({ verificationProvider: 'self-declared', verificationRef: 'self' });
+
+    const other = await registerUser(ctx);
+    const under = await ctx.http().post('/verification/platform').set(auth(other)).send({ platform: 'self', lowerBound: 17, declaration: 'self' }).expect(200);
+    expect(under.body).toMatchObject({ verified: false, reason: 'under_age' });
+    await ctx.http().post('/verification/platform').set(auth(other)).send({ platform: 'self', lowerBound: 18, declaration: 'confirmed' }).expect(400);
+  });
+
   it('validates the payload', async () => {
     const user = await registerUser(ctx);
     await ctx.http().post('/verification/platform').set(auth(user)).send({ platform: 'windows', declaration: 'self' }).expect(400);

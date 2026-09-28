@@ -3,6 +3,7 @@ package com.larea.app.di
 import android.content.Context
 import com.larea.app.Backend
 import com.larea.app.core.age.AgeSignals
+import com.larea.app.core.media.ImageUploader
 import com.larea.app.core.auth.SessionRepository
 import com.larea.app.core.auth.SessionStore
 import com.larea.app.core.auth.TokenRefresher
@@ -90,6 +91,10 @@ object AppModule {
     @Singleton
     fun realtimeClient(@PlainClient client: OkHttpClient, store: SessionStore, refresher: TokenRefresher, json: Json): RealtimeClient =
         RealtimeClient(client, Backend.wsUrl, store, refresher, json)
+
+    @Provides
+    @Singleton
+    fun imageUploader(@ApplicationContext context: Context, api: UploadApi): ImageUploader = ImageUploader(context, api)
 
     @Provides
     @Singleton

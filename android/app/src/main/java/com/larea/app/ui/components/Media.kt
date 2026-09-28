@@ -77,7 +77,7 @@ fun ImageViewer(image: ImageAttachment, onDismiss: () -> Unit, previewModel: Any
         var pan by remember { mutableStateOf(Offset.Zero) }
         val drag = remember { Animatable(0f) }
         val scope = rememberCoroutineScope()
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
+        Box(Modifier.exposeTestTags().fillMaxSize().background(Color.Black)) {
             SubcomposeAsyncImage(
                 model = previewModel ?: image.fullUrl,
                 contentDescription = "Photo",

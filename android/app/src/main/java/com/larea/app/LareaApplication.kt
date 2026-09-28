@@ -11,12 +11,18 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import com.larea.app.di.PlainClient
 import dagger.hilt.android.HiltAndroidApp
+import org.maplibre.android.MapLibre
 import okhttp3.OkHttpClient
 import javax.inject.Inject
 
 @HiltAndroidApp
 class LareaApplication : Application(), SingletonImageLoader.Factory {
     @Inject @PlainClient lateinit var httpClient: OkHttpClient
+
+    override fun onCreate() {
+        super.onCreate()
+        MapLibre.getInstance(this)
+    }
 
     /** Media is public and immutable; one cache shared by chat photos, listings and the viewer (as iOS `ImageCache`). */
     override fun newImageLoader(context: PlatformContext): ImageLoader = ImageLoader.Builder(context)
