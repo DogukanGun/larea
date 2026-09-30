@@ -25,6 +25,8 @@ export interface MeView {
   activeMembership: { venueId: string; venueName: string; joinedAt: string } | null;
   /** What this backend supports; apps hide features that are off. */
   features: Features;
+  /** The linked Solana wallet (dApp Store build), or null. */
+  walletAddress: string | null;
 }
 
 @Injectable()
@@ -73,6 +75,7 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
+        wallet: { select: { address: true } },
         memberships: {
           where: { status: 'ACTIVE' },
           include: { venue: { select: { id: true, name: true } } },
@@ -97,6 +100,7 @@ export class UsersService {
         ? { venueId: membership.venue.id, venueName: membership.venue.name, joinedAt: membership.joinedAt.toISOString() }
         : null,
       features: featuresOf(this.env),
+      walletAddress: user.wallet?.address ?? null,
     };
   }
 

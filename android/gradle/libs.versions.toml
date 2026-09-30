@@ -22,6 +22,7 @@ junit = "4.13.2"
 # MapLibre: the `android-sdk-opengl` build; the plain `android-sdk` artifact is Vulkan-only since 13.x and fails on emulators and older GPUs.
 maplibre = "13.6.1"
 coil = "3.6.3"
+mwa = "2.2.0"
 ageSignals = "0.0.4"
 exifinterface = "1.4.2"
 splashscreen = "1.2.0"
@@ -61,6 +62,7 @@ kotlin-test = { group = "org.jetbrains.kotlin", name = "kotlin-test", version.re
 maplibre = { group = "org.maplibre.gl", name = "android-sdk-opengl", version.ref = "maplibre" }
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 coil-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
+solana-mwa = { group = "com.solanamobile", name = "mobile-wallet-adapter-clientlib-ktx", version.ref = "mwa" }
 play-age-signals = { group = "com.google.android.play", name = "age-signals", version.ref = "ageSignals" }
 androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }

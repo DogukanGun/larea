@@ -27,6 +27,7 @@ data class Features(
     val polls: Boolean = false,
     val market: Boolean = false,
     val payments: Boolean = false,
+    val solana: Boolean = false,
 ) {
     companion object {
         val None = Features()
@@ -46,6 +47,8 @@ data class MeView(
     val createdAt: String = "",
     val activeMembership: ActiveMembership? = null,
     val features: Features? = null,
+    /** The linked Solana wallet (dApp Store build). */
+    val walletAddress: String? = null,
 ) {
     val capabilities: Features get() = features ?: Features.None
 }

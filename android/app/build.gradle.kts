@@ -19,6 +19,21 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // play: Google Play and the App Store twin. solana: the Solana dApp Store build with check-in stamps,
+    // tips and USDC payments (see ../docs/solana.md). Same app, same name, separate package.
+    flavorDimensions += "store"
+    productFlavors {
+        create("play") {
+            dimension = "store"
+            buildConfigField("boolean", "SOLANA", "false")
+        }
+        create("solana") {
+            dimension = "store"
+            applicationIdSuffix = ".solana"
+            buildConfigField("boolean", "SOLANA", "true")
+        }
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
@@ -79,6 +94,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.okhttp)
     implementation(libs.play.age.signals)
+    "solanaImplementation"(libs.solana.mwa)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

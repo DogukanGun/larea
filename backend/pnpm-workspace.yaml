@@ -2,5 +2,7 @@ allowBuilds:
   '@prisma/engines': true
   '@scarf/scarf': false
   argon2: true
+  bufferutil: false
   esbuild: true
   prisma: true
+  utf-8-validate: false

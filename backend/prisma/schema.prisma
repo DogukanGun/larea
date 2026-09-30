@@ -178,6 +178,7 @@ model User {
   ordersAsPayer    Order[]               @relation("OrderPayer")
   ordersAsPayee    Order[]               @relation("OrderPayee")
   stripeAccount    StripeAccount?
+  wallet           Wallet?
 }
 
 model RefreshToken {
@@ -569,4 +570,13 @@ model StripeEvent {
   error       String?
 
   @@index([receivedAt])
+}
+
+/// The Solana wallet a user linked by signing in with it (dApp Store build). One per account and per address.
+model Wallet {
+  userId   String   @id
+  address  String   @unique
+  linkedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

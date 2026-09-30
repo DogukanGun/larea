@@ -57,6 +57,7 @@ import com.larea.app.core.network.MeView
 import com.larea.app.core.network.StripeAccountStatus
 import com.larea.app.core.network.StripeStatus
 import com.larea.app.core.network.apiCall
+import com.larea.app.solana.LocalSolanaUi
 import com.larea.app.core.network.userMessage
 import com.larea.app.ui.components.Avatar
 import com.larea.app.ui.components.EmptyState
@@ -196,6 +197,7 @@ fun ProfileScreen(onPayouts: () -> Unit, onMyListings: () -> Unit, bottomInset: 
                     }
                 }
             }
+            LocalSolanaUi.current.ProfileSection()
             SectionHeader("Blocked people")
             GroupedCard {
                 if (state.blocks.isEmpty()) {

@@ -61,18 +61,21 @@ object AppModule {
     @Singleton
     fun apiClient(@PlainClient plain: OkHttpClient, store: SessionStore, refresher: TokenRefresher): OkHttpClient =
         plain.newBuilder()
-            .addInterceptor(AuthInterceptor(store))
+            .addInterceptor(AuthInterceptor(store, build = if (com.larea.app.BuildConfig.SOLANA) "solana" else null))
             .authenticator(TokenAuthenticator(refresher))
             .build()
 
     @Provides
     @Singleton
-    fun api(client: OkHttpClient, json: Json): LareaApi = Retrofit.Builder()
+    fun retrofit(client: OkHttpClient, json: Json): Retrofit = Retrofit.Builder()
         .baseUrl(Backend.baseUrl)
         .client(client)
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build()
-        .create(LareaApi::class.java)
+
+    @Provides
+    @Singleton
+    fun api(retrofit: Retrofit): LareaApi = retrofit.create(LareaApi::class.java)
 
     @Provides
     @Singleton

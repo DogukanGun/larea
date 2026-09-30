@@ -11,18 +11,19 @@ import okhttp3.Route
 
 private const val HEADER = "Authorization"
 
-/** Adds the bearer token to every request. */
-class AuthInterceptor(private val store: SessionSource) : Interceptor {
+/** Adds the bearer token to every request, and tells the backend which store build is calling. */
+class AuthInterceptor(private val store: SessionSource, private val build: String? = null) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val token = runBlocking { store.accessToken() }
-        val request = if (token != null && chain.request().header(HEADER) == null) {
-            chain.request().newBuilder().header(HEADER, "Bearer $token").build()
-        } else {
-            chain.request()
-        }
-        return chain.proceed(request)
+        val builder = chain.request().newBuilder()
+        if (token != null && chain.request().header(HEADER) == null) builder.header(HEADER, "Bearer $token")
+        // The dApp Store build gates chats by check-in stamps; the server only applies that to it.
+        if (build != null) builder.header(BUILD_HEADER, build)
+        return chain.proceed(builder.build())
     }
 }
+
+const val BUILD_HEADER = "X-Larea-Build"
 
 /** On 401, refreshes once and retries the request with the new token. */
 class TokenAuthenticator(private val refresher: TokenRefreshing) : Authenticator {

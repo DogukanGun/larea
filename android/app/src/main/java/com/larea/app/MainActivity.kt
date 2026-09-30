@@ -8,6 +8,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.larea.app.core.DebugFlags
 import com.larea.app.core.auth.SessionStore
+import androidx.compose.runtime.CompositionLocalProvider
+import com.larea.app.solana.LocalSolanaUi
+import com.larea.app.solana.SolanaUi
 import com.larea.app.ui.LareaApp
 import com.larea.app.ui.navigation.AppRouter
 import com.larea.app.ui.theme.LareaTheme
@@ -19,6 +22,7 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
     @Inject lateinit var router: AppRouter
     @Inject lateinit var sessions: SessionStore
+    @Inject lateinit var solana: SolanaUi
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -26,11 +30,14 @@ class MainActivity : ComponentActivity() {
         DebugFlags.read(intent, BuildConfig.DEBUG)
         // UI tests launch with LareaResetState so a previous run's session never leaks in.
         if (savedInstanceState == null && DebugFlags.resetState) runBlocking { sessions.clear() }
+        solana.attach(this)
         enableEdgeToEdge()
         if (savedInstanceState == null) router.handle(intent?.dataString)
         setContent {
             LareaTheme {
-                LareaApp()
+                CompositionLocalProvider(LocalSolanaUi provides solana) {
+                    LareaApp()
+                }
             }
         }
     }

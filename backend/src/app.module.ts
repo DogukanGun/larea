@@ -20,6 +20,7 @@ import { RealtimeCoreModule } from './realtime/realtime.core.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { RetentionModule } from './retention/retention.module.js';
+import { SolanaModule } from './solana/solana.module.js';
 import { TestingModule } from './testing/testing.module.js';
 import { VenuesModule } from './venues/venues.module.js';
 import { VerificationModule } from './verification/verification.module.js';
@@ -39,6 +40,7 @@ import { VerificationModule } from './verification/verification.module.js';
     VenuesModule,
     PresenceModule,
     RealtimeModule,
+    SolanaModule,
     EnforcementModule,
     BlocksModule,
     MediaModule,
