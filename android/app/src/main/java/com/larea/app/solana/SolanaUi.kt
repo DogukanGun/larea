@@ -39,6 +39,10 @@ interface SolanaUi {
     suspend fun payOrder(orderId: String, step: (String) -> Unit): Result<Unit> =
         Result.failure(IllegalStateException("This deal is paid in USDC. Pay for it in the Larea app from the Solana dApp Store."))
 
+    /** Perks running at a place for holders (place card and chat). */
+    @Composable
+    fun VenuePerks(venueId: String) {}
+
     /** Wallet, stamps and levels on the Profile tab. */
     @Composable
     fun ProfileSection() {}

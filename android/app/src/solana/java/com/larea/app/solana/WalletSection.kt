@@ -112,6 +112,21 @@ fun WalletSection(model: WalletViewModel = hiltViewModel()) {
             }
             SectionFooter("Regulars get their own room at each place and can start polls.")
         }
+        if (state.rewards.isNotEmpty()) {
+            SectionHeader("SKR rewards")
+            GroupedCard(Modifier.testTag("solana.rewards")) {
+                state.rewards.forEachIndexed { i, reward ->
+                    if (i > 0) RowDivider(inset = 16)
+                    ListRow {
+                        Column(Modifier.weight(1f)) {
+                            Text("${reward.levelName} at ${reward.venueName}", style = LareaType.body, color = c.text, maxLines = 1)
+                            Text(if (reward.status == "SENT") "Sent to your wallet" else "On its way", style = LareaType.subheadline, color = c.secondaryText)
+                        }
+                        Text("+${reward.amount} SKR", style = LareaType.headline, color = c.brandPrimary)
+                    }
+                }
+            }
+        }
     }
     state.stamps?.let { stamps -> StampsDialog(stamps, onDismiss = model::closeStamps) }
 }

@@ -177,6 +177,7 @@ fun ChatScreen(session: ChatSession, venueName: String, onLeft: () -> Unit, onBa
             },
         )
         solana.RoomSwitch(state.venueId, state.room, session::switchRoom)
+        solana.VenuePerks(state.venueId)
         if (state.connection != ConnectionState.Connected) Banner(BannerKind.Info, "Reconnecting…")
         if (state.weakGps) Banner(BannerKind.Warning, "Weak GPS signal. We may not be able to confirm you're still here.")
         if (state.isMuted) Banner(BannerKind.Danger, "You can't send messages until ${Dates.short(state.mutedUntil)}.")

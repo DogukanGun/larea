@@ -15,6 +15,9 @@ import { SOLANA_CLIENT, type SolanaClient } from './solana.client.js';
 import { SolanaScheduler } from './solana.scheduler.js';
 import { MetadataController, StampsController } from './stamps.controller.js';
 import { StampsService } from './stamps.service.js';
+import { PerksAdminController, PerksController } from './perks.controller.js';
+import { PerksService } from './perks.service.js';
+import { RewardsService } from './rewards.service.js';
 import { TipsController } from './tips.controller.js';
 import { TipsService } from './tips.service.js';
 import { WalletController } from './wallet.controller.js';
@@ -22,11 +25,13 @@ import { WalletService } from './wallet.service.js';
 
 @Module({
   imports: [AuthModule, PresenceModule, VenuesModule, LoyaltyModule, BlocksModule, MessagesModule],
-  controllers: [WalletController, StampsController, TipsController, MetadataController],
+  controllers: [WalletController, StampsController, TipsController, PerksController, PerksAdminController, MetadataController],
   providers: [
     WalletService,
     StampsService,
     TipsService,
+    RewardsService,
+    PerksService,
     SolanaScheduler,
     SolanaEnabledGuard,
     {

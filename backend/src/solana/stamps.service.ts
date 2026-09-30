@@ -9,6 +9,7 @@ import { LEGEND, levelName, REGULAR } from '../loyalty/levels.js';
 import { LoyaltyService, type LoyaltyView } from '../loyalty/loyalty.service.js';
 import { type LocationFix, PresenceService } from '../presence/presence.service.js';
 import { VenuesService } from '../venues/venues.service.js';
+import { RewardsService } from './rewards.service.js';
 import { SOLANA_CLIENT, type SolanaClient, SolanaUnavailableError, TransactionMismatchError } from './solana.client.js';
 
 /** Bubblegum caps a name at 32 bytes. */
@@ -84,6 +85,7 @@ export class StampsService {
     private readonly presence: PresenceService,
     private readonly venues: VenuesService,
     private readonly loyalty: LoyaltyService,
+    private readonly rewards: RewardsService,
     @Inject(SOLANA_CLIENT) private readonly solana: SolanaClient,
   ) {}
 
@@ -218,6 +220,7 @@ export class StampsService {
         include: { venue: { select: { name: true } } },
       });
       this.logger.log({ stampId: stamp.id, assetId: asset?.assetId }, 'stamp confirmed');
+      if (updated.levelMinted) await this.rewards.grantLevel(updated);
       return this.view(updated);
     } catch (error) {
       // One confirmed stamp per place per day: a second one that landed anyway stays a plain asset.

@@ -105,6 +105,32 @@ data class TipResult(val tip: TipView, val transaction: String, val cluster: Str
 @Serializable
 data class OrderPayment(val transaction: String, val cluster: String = "devnet")
 
+@Serializable
+data class PerkView(
+    val id: String,
+    val venueId: String = "",
+    /** NOTICE or SKR_DROP. */
+    val kind: String = "NOTICE",
+    val title: String,
+    val description: String = "",
+    val minLevel: Int = 1,
+    val minLevelName: String = "",
+    /** SKR_DROP: whole SKR per holder. */
+    val amount: String? = null,
+    val endsAt: String = "",
+    val eligible: Boolean = false,
+    val claimed: Boolean = false,
+)
+
+@Serializable
+data class PerksResponse(val perks: List<PerkView> = emptyList())
+
+@Serializable
+data class RewardView(val id: String, val venueName: String = "", val levelName: String = "", val amount: String = "0", val status: String = "PENDING")
+
+@Serializable
+data class RewardsResponse(val rewards: List<RewardView> = emptyList())
+
 /** The dApp Store build's Solana endpoints (see backend/src/solana). */
 interface SolanaApi {
     @POST("solana/wallet/challenge") suspend fun challenge(): SiwsChallenge
@@ -120,6 +146,10 @@ interface SolanaApi {
 
     @POST("venues/{id}/tips") suspend fun tip(@Path("id") venueId: String, @Body body: CreateTipRequest): TipResult
     @POST("solana/tips/{id}/submit") suspend fun submitTip(@Path("id") tipId: String, @Body body: SubmitStampRequest): TipView
+
+    @GET("venues/{id}/perks") suspend fun perks(@Path("id") venueId: String): PerksResponse
+    @POST("solana/perks/{id}/claim") suspend fun claimPerk(@Path("id") perkId: String): PerkView
+    @GET("solana/rewards") suspend fun rewards(): RewardsResponse
 
     @POST("market/orders/{id}/solana/pay") suspend fun payOrder(@Path("id") orderId: String): OrderPayment
     @POST("market/orders/{id}/solana/submit") suspend fun submitOrderPayment(@Path("id") orderId: String, @Body body: SubmitStampRequest): Order

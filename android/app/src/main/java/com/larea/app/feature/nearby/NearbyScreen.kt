@@ -66,6 +66,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.larea.app.core.network.ActiveMembership
 import com.larea.app.core.network.NearbyVenue
+import com.larea.app.solana.LocalSolanaUi
 import com.larea.app.ui.components.BottomPanel
 import com.larea.app.ui.components.EmptyState
 import com.larea.app.ui.components.GroupedCard
@@ -458,6 +459,7 @@ private fun VenueCard(venue: NearbyVenue, joining: Boolean, step: String?, stamp
                 Icon(Icons.Filled.Close, contentDescription = null, tint = c.secondaryText, modifier = Modifier.size(16.dp))
             }
         }
+        LocalSolanaUi.current.VenuePerks(venue.id)
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
             Label(Icons.Filled.People, if (venue.memberCount == 1) "1 person here" else "${venue.memberCount} people here")
             Label(Icons.Filled.NearMe, "${venue.distanceText} away")

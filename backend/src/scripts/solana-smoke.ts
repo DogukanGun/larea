@@ -1,7 +1,7 @@
 /**
  * End-to-end check of RealSolanaClient against the configured cluster (local validator or devnet):
  * a throwaway wallet funded by the authority mints a stamp with a level badge, then tips a second
- * wallet 1.5 test USDC, then pays 2 USDC into escrow and gets 1.8 paid out. Usage: node dist/scripts/solana-smoke.js
+ * wallet 1.5 test USDC, then pays 2 USDC into escrow and gets 1.8 paid out, and receives 5 SKR from the rewards wallet. Usage: node dist/scripts/solana-smoke.js
  */
 import { generateSigner, signTransaction, sol } from '@metaplex-foundation/umi';
 import { createAssociatedToken, fetchToken, findAssociatedTokenPda, mintTokensTo, transferSol } from '@metaplex-foundation/mpl-toolbox';
@@ -79,4 +79,11 @@ await signSubmitConfirm('escrow payment', payment.transaction, payment.messageHa
 const payout = await client.sendFromCustody({ wallet: 'escrow', to: friend.publicKey.toString(), token: 'USDC', amount: 1_800_000n, memo: 'larea:payout:smoke' });
 const after = await fetchToken(umi, findAssociatedTokenPda(umi, { mint: usdc, owner: friend.publicKey })[0]);
 console.log('payout', payout, '→ friend now has', Number(after.amount) / 1e6, 'USDC');
-process.exit(after.amount === 3_300_000n ? 0 : 1);
+if (after.amount !== 3_300_000n) process.exit(1);
+
+// Rewards: Larea sends 5 SKR from the rewards wallet (a level reward or a perk drop).
+const skr = publicKey(env.SKR_MINT!);
+const reward = await client.sendFromCustody({ wallet: 'rewards', to: friend.publicKey.toString(), token: 'SKR', amount: 5_000_000n, memo: 'larea:reward:smoke' });
+const skrBalance = await fetchToken(umi, findAssociatedTokenPda(umi, { mint: skr, owner: friend.publicKey })[0]);
+console.log('reward', reward, '→ friend has', Number(skrBalance.amount) / 1e6, 'SKR');
+process.exit(skrBalance.amount === 5_000_000n ? 0 : 1);

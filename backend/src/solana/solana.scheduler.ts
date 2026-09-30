@@ -3,12 +3,14 @@ import { InjectEnv } from '../config/inject-env.js';
 import type { Env } from '../config/env.js';
 import { RedisService } from '../infra/redis/redis.service.js';
 import { StampsService } from './stamps.service.js';
+import { PerksService } from './perks.service.js';
+import { RewardsService } from './rewards.service.js';
 import { TipsService } from './tips.service.js';
 
 const INTERVAL_MS = 30_000;
 const LOCK_TTL_MS = 25_000;
 
-/** Confirms check-ins and tips whose app never came back to report them, and fails the ones that ran out. */
+/** Confirms check-ins and tips whose app never came back to report them, fails the ones that ran out, and retries SKR payouts. */
 @Injectable()
 export class SolanaScheduler implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SolanaScheduler.name);
@@ -19,6 +21,8 @@ export class SolanaScheduler implements OnModuleInit, OnModuleDestroy {
     private readonly redis: RedisService,
     private readonly stamps: StampsService,
     private readonly tips: TipsService,
+    private readonly rewards: RewardsService,
+    private readonly perks: PerksService,
   ) {}
 
   onModuleInit(): void {
@@ -35,6 +39,7 @@ export class SolanaScheduler implements OnModuleInit, OnModuleDestroy {
     if (!(await this.redis.acquireLock('lock:solana-sweep', LOCK_TTL_MS))) return;
     const stamps = await this.stamps.sweep();
     const tips = await this.tips.sweep();
-    if (stamps.confirmed || stamps.failed || tips.confirmed || tips.failed) this.logger.log({ stamps, tips }, 'solana sweep');
+    const payouts = (await this.rewards.sweep()) + (await this.perks.sweep());
+    if (stamps.confirmed || stamps.failed || tips.confirmed || tips.failed || payouts) this.logger.log({ stamps, tips, payouts }, 'solana sweep');
   }
 }

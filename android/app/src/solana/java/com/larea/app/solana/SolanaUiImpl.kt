@@ -32,5 +32,8 @@ class SolanaUiImpl @Inject constructor(
     override fun TipDialog(venueId: String, recipient: Author, onDismiss: () -> Unit) = TipDialogContent(venueId, recipient, onDismiss)
 
     @Composable
+    override fun VenuePerks(venueId: String) = VenuePerksList(venueId)
+
+    @Composable
     override fun ProfileSection() = WalletSection()
 }

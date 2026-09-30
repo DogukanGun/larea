@@ -26,6 +26,8 @@ data class WalletUiState(
     val stampsLoading: Boolean = false,
     /** Loyalty per place, highest first. */
     val levels: List<LoyaltyView> = emptyList(),
+    /** SKR received for reaching levels. */
+    val rewards: List<RewardView> = emptyList(),
 )
 
 @HiltViewModel
@@ -46,6 +48,7 @@ class WalletViewModel @Inject constructor(
                 }
                 .onFailure { e -> _state.update { it.copy(loading = false, error = e.userMessage()) } }
             apiCall { api.levels() }.onSuccess { r -> _state.update { it.copy(levels = r.levels) } }
+            apiCall { api.rewards() }.onSuccess { r -> _state.update { it.copy(rewards = r.rewards) } }
         }
     }
 
