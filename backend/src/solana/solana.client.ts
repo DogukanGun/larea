@@ -5,17 +5,55 @@ export interface WalletBalances {
   skr: number;
 }
 
+/** A transaction Larea built for the user's wallet: base64 wire bytes, partially signed by Larea's keys. */
+export interface PreparedTransaction {
+  transaction: string;
+  /** sha256 (hex) of the message bytes; the signed transaction must carry exactly this message. */
+  messageHash: string;
+}
+
+/** A compressed NFT that landed: its asset id, leaf index and owner. */
+export interface MintedAsset {
+  assetId: string;
+  leafIndex: number;
+  owner: string;
+}
+
+export type Confirmation =
+  | { state: 'pending' }
+  | { state: 'failed'; error: string }
+  | { state: 'confirmed'; minted: MintedAsset[] };
+
+export interface StampMintInput {
+  owner: string;
+  name: string;
+  uri: string;
+  /** A level badge minted in the same transaction (loyalty levels, S3). */
+  levelBadge?: { name: string; uri: string };
+}
+
 /**
  * Everything Larea does on Solana, behind one interface so tests use an in-memory fake
  * (the STRIPE_CLIENT pattern). Transactions for the user's wallet are built here, partially signed by
- * Larea's keys where needed, and returned serialized for Mobile Wallet Adapter to sign and send.
+ * Larea's keys where needed, and returned serialized for Mobile Wallet Adapter to sign.
  */
 export interface SolanaClient {
   readonly cluster: 'localnet' | 'devnet' | 'mainnet';
   balances(address: string): Promise<WalletBalances>;
+  /** A mint of a soulbound stamp (plus an optional level badge) with the user's wallet as fee payer. */
+  buildStampMint(input: StampMintInput): Promise<PreparedTransaction>;
+  /** Sends a transaction the wallet signed; refuses anything whose message differs from what we built. */
+  submit(signedTransaction: string, expectedMessageHash: string): Promise<string>;
+  /** Where a sent transaction stands; for mints, the assets it created (checked against the message hash). */
+  confirm(signature: string, expectedMessageHash: string): Promise<Confirmation>;
+  /** Compressed NFT ids the owner holds according to a DAS indexer; null when none is configured. */
+  assetsByOwner(owner: string): Promise<string[] | null>;
 }
 
 export const SOLANA_CLIENT = Symbol('SOLANA_CLIENT');
 
 /** Solana is not configured on this server. */
 export class SolanaUnavailableError extends Error {}
+
+/** A signed transaction does not match the one Larea prepared. */
+export class TransactionMismatchError extends Error {}

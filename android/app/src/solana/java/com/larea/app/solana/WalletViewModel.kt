@@ -20,6 +20,10 @@ data class WalletUiState(
     val loading: Boolean = true,
     val busy: Boolean = false,
     val error: String? = null,
+    /** "My stamps": null until opened. */
+    val stamps: List<StampView>? = null,
+    val stampsDasChecked: Boolean = false,
+    val stampsLoading: Boolean = false,
 )
 
 @HiltViewModel
@@ -63,6 +67,17 @@ class WalletViewModel @Inject constructor(
             _state.update { it.copy(busy = false) }
         }
     }
+
+    fun loadStamps() {
+        _state.update { it.copy(stampsLoading = true) }
+        viewModelScope.launch {
+            apiCall { api.stamps() }
+                .onSuccess { r -> _state.update { it.copy(stamps = r.stamps, stampsDasChecked = r.dasChecked, stampsLoading = false) } }
+                .onFailure { e -> _state.update { it.copy(stampsLoading = false, error = e.userMessage()) } }
+        }
+    }
+
+    fun closeStamps() = _state.update { it.copy(stamps = null) }
 
     fun disconnect() {
         viewModelScope.launch {

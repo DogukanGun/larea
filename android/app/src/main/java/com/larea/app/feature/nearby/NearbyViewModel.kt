@@ -9,6 +9,7 @@ import com.larea.app.core.network.LocationFixBody
 import com.larea.app.core.network.NearbyVenue
 import com.larea.app.core.network.apiCall
 import com.larea.app.core.network.userMessage
+import com.larea.app.solana.SolanaUi
 import com.larea.app.ui.map.MapViewport
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -36,6 +37,10 @@ data class NearbyUiState(
     val loading: Boolean = false,
     val locating: Boolean = true,
     val joining: String? = null,
+    /** What joining is doing right now (the Solana build checks in through the wallet first). */
+    val joiningStep: String? = null,
+    /** The Solana build: joining starts with a check-in stamp. */
+    val stamps: Boolean = false,
     val error: String? = null,
     val notice: String? = null,
     val degraded: Boolean = false,
@@ -73,8 +78,9 @@ fun distanceM(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
 class NearbyViewModel @Inject constructor(
     private val api: LareaApi,
     private val location: LocationSource,
+    private val solana: SolanaUi,
 ) : ViewModel() {
-    private val _state = MutableStateFlow(NearbyUiState())
+    private val _state = MutableStateFlow(NearbyUiState(stamps = solana.enabled))
     val state: StateFlow<NearbyUiState> = _state
 
     private var watch: Job? = null
@@ -170,8 +176,9 @@ class NearbyViewModel @Inject constructor(
         val fix = location.latest.value ?: location.awaitFix() ?: return false
         if (_state.value.joining != null) return false
         _state.update { it.copy(joining = venueId) }
-        val result = apiCall { api.join(venueId, LocationFixBody(fix.lat, fix.lng, fix.accuracyM, fix.mocked)) }
-        _state.update { it.copy(joining = null, notice = result.exceptionOrNull()?.userMessage()) }
+        val result = solana.beforeJoin(venueId, fix) { step -> _state.update { it.copy(joiningStep = step) } }
+            .mapCatching { apiCall { api.join(venueId, LocationFixBody(fix.lat, fix.lng, fix.accuracyM, fix.mocked)) }.getOrThrow() }
+        _state.update { it.copy(joining = null, joiningStep = null, notice = result.exceptionOrNull()?.userMessage()) }
         return result.isSuccess
     }
 

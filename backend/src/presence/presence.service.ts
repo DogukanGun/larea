@@ -3,7 +3,7 @@ import { BlocksService } from '../blocks/blocks.service.js';
 import { forbidden, unprocessable } from '../common/errors.js';
 import { InjectEnv } from '../config/inject-env.js';
 import type { Env } from '../config/env.js';
-import type { Membership, MembershipEndReason } from '../generated/prisma/client.js';
+import type { Membership, MembershipEndReason, Venue } from '../generated/prisma/client.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../infra/prisma/prisma.service.js';
 import { RedisService } from '../infra/redis/redis.service.js';
@@ -137,9 +137,11 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
     await this.rememberFix(userId, fix);
   }
 
-  async join(userId: string, venueId: string, fix: LocationFix): Promise<JoinResult> {
-    const venue = await this.venues.getActive(venueId);
-
+  /**
+   * Everything that proves the user is at the place: no simulated fixes (outside development), no
+   * teleporting, a usable accuracy and within the join radius. Shared by joining and check-in stamps.
+   */
+  async assertAtVenue(userId: string, venue: Venue, fix: LocationFix): Promise<void> {
     if (fix.mocked && !this.env.ALLOW_MOCK_LOCATIONS) {
       throw unprocessable('MOCK_LOCATION', 'Mock locations are not allowed.');
     }
@@ -154,8 +156,26 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
     if (verdict === 'too_far') {
       throw forbidden('TOO_FAR', 'You need to be closer to this location to join the chat.');
     }
-
     await this.rememberFix(userId, fix);
+  }
+
+  /**
+   * The dApp Store build unlocks a chat with a check-in stamp: a confirmed stamp for this place from
+   * the last 24 hours. Other builds share the same rooms and join by location alone.
+   */
+  private async assertStamped(userId: string, venueId: string): Promise<void> {
+    const since = new Date(Date.now() - 24 * 3600 * 1000);
+    const stamp = await this.prisma.stamp.findFirst({
+      where: { userId, venueId, status: 'CONFIRMED', confirmedAt: { gte: since } },
+      select: { id: true },
+    });
+    if (!stamp) throw forbidden('STAMP_REQUIRED', 'Check in here first: your stamp is what opens this chat.');
+  }
+
+  async join(userId: string, venueId: string, fix: LocationFix, build?: string): Promise<JoinResult> {
+    const venue = await this.venues.getActive(venueId);
+    await this.assertAtVenue(userId, venue, fix);
+    if (build === 'solana' && this.env.SOLANA_ENABLED) await this.assertStamped(userId, venueId);
 
     const existing = await this.findActive(userId, venueId);
     let membership: Membership;

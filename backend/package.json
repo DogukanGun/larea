@@ -31,7 +31,8 @@
     "prebuild": "prisma generate",
     "openapi": "nest build && NODE_ENV=test node dist/scripts/export-openapi.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "pretest:e2e": "node --env-file=.env.test node_modules/prisma/build/index.js migrate deploy"
+    "pretest:e2e": "node --env-file=.env.test node_modules/prisma/build/index.js migrate deploy",
+    "solana:smoke": "node dist/scripts/solana-smoke-stamp.js"
   },
   "dependencies": {
     "@metaplex-foundation/digital-asset-standard-api": "^2.1.1",

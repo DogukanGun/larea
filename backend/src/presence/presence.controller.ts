@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
@@ -20,8 +20,13 @@ export class PresenceController {
   @Post(':id/join')
   @RateLimit({ limit: 12, windowSec: 60 })
   @ApiOperation({ summary: 'Join the venue chat; requires a precise fix within the join radius' })
-  join(@CurrentUser() user: UserSnapshot, @Param('id') venueId: string, @Body() fix: LocationFixDto): Promise<JoinResult> {
-    return this.presence.join(user.id, venueId, fix);
+  join(
+    @CurrentUser() user: UserSnapshot,
+    @Param('id') venueId: string,
+    @Body() fix: LocationFixDto,
+    @Headers('x-larea-build') build?: string,
+  ): Promise<JoinResult> {
+    return this.presence.join(user.id, venueId, fix, build);
   }
 
   @Get(':id/members')

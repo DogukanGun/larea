@@ -179,6 +179,7 @@ model User {
   ordersAsPayee    Order[]               @relation("OrderPayee")
   stripeAccount    StripeAccount?
   wallet           Wallet?
+  stamps           Stamp[]
 }
 
 model RefreshToken {
@@ -233,6 +234,7 @@ model Venue {
 
   @@unique([source, sourceRef])
   @@index([lat, lng])
+  stamps      Stamp[]
 }
 
 model Membership {
@@ -579,4 +581,41 @@ model Wallet {
   linkedAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum StampStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+}
+
+/// A check-in: a soulbound compressed NFT minted to the user's wallet at a place (dApp Store build).
+/// PENDING until the transaction lands; at most one CONFIRMED stamp per user, place and day.
+model Stamp {
+  id          String      @id @default(uuid())
+  userId      String
+  venueId     String
+  wallet      String
+  /// UTC date of the visit, YYYY-MM-DD.
+  day         String
+  /// Which visit this is at the place (1 = first).
+  visit       Int
+  status      StampStatus @default(PENDING)
+  /// sha256 of the transaction message we built; a submitted transaction must match it.
+  messageHash String
+  signature   String?     @unique
+  assetId     String?     @unique
+  leafIndex   Int?
+  /// Loyalty level badge minted in the same transaction (S3), if this visit reached one.
+  levelMinted Int?
+  error       String?
+  createdAt   DateTime    @default(now())
+  expiresAt   DateTime
+  confirmedAt DateTime?
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@index([userId, venueId, status])
+  @@index([status, createdAt])
 }

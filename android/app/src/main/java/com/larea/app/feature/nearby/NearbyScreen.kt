@@ -194,6 +194,8 @@ fun NearbyScreen(
                 VenueCard(
                     venue = selected,
                     joining = state.joining == selected.id,
+                    step = state.joiningStep.takeIf { state.joining == selected.id },
+                    stamps = state.stamps,
                     onJoin = { join(selected.id, selected.name) },
                     onClose = { model.select(null) },
                     bottomInset = bottomInset,
@@ -437,7 +439,7 @@ private fun VenueRow(venue: NearbyVenue, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun VenueCard(venue: NearbyVenue, joining: Boolean, onJoin: () -> Unit, onClose: () -> Unit, bottomInset: androidx.compose.ui.unit.Dp) {
+private fun VenueCard(venue: NearbyVenue, joining: Boolean, step: String?, stamps: Boolean, onJoin: () -> Unit, onClose: () -> Unit, bottomInset: androidx.compose.ui.unit.Dp) {
     val c = Larea.colors
     Column(
         verticalArrangement = Arrangement.spacedBy(Spacing.l),
@@ -461,7 +463,8 @@ private fun VenueCard(venue: NearbyVenue, joining: Boolean, onJoin: () -> Unit, 
             Label(Icons.Filled.NearMe, "${venue.distanceText} away")
         }
         if (venue.eligible) {
-            PrimaryButton("Join chat", onClick = onJoin, loading = joining, tag = "venue.card.join")
+            PrimaryButton(if (stamps) "Check in & join" else "Join chat", onClick = onJoin, loading = joining, tag = "venue.card.join")
+            step?.let { Text(it, style = LareaType.subheadline, color = c.secondaryText, modifier = Modifier.fillMaxWidth().testTag("venue.card.step")) }
         } else {
             NoteCard(Icons.AutoMirrored.Filled.DirectionsWalk, "Get within 200 m of this place to join its chat. You're about ${venue.distanceText} away.")
             SecondaryButton("Try to join anyway", onClick = onJoin, tag = "venue.card.join")
