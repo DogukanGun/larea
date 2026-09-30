@@ -20,6 +20,19 @@ object Dates {
         return DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale).format(Instant.ofEpochMilli(ms).atZone(zone))
     }
 
+    /** "14:05" today, "tomorrow at 14:05", otherwise "Wed 14:05" (iOS `lareaShort`). */
+    fun short(iso: String?, zone: ZoneId = ZoneId.systemDefault(), locale: Locale = Locale.getDefault(), nowMs: Long = System.currentTimeMillis()): String {
+        val ms = parseMillis(iso) ?: return ""
+        val time = Instant.ofEpochMilli(ms).atZone(zone)
+        val today = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
+        val clock = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale).format(time)
+        return when (time.toLocalDate()) {
+            today -> clock
+            today.plusDays(1) -> "tomorrow at $clock"
+            else -> DateTimeFormatter.ofPattern("EEE", locale).format(time) + " " + clock
+        }
+    }
+
     /** "28 Sep 2026, 14:05" in the user's locale. */
     fun dateTime(iso: String?, zone: ZoneId = ZoneId.systemDefault(), locale: Locale = Locale.getDefault()): String {
         val ms = parseMillis(iso) ?: return ""

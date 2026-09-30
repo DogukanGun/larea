@@ -64,6 +64,8 @@ import com.larea.app.ui.navigation.ProfileMyListings
 import com.larea.app.ui.navigation.ProfilePayouts
 import com.larea.app.ui.theme.Larea
 import com.larea.app.ui.theme.LareaType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private data class TabItem(val tab: AppTab, val label: String, val icon: ImageVector, val graph: Any, val tag: String)
 
@@ -97,7 +99,8 @@ fun MainScaffold(root: RootViewModel) {
         onDispose { root.mainHidden() }
     }
     LaunchedEffect(nav) {
-        router.requests.collect { request -> handle(nav, request) }
+        // Navigation must happen on the main thread whoever asked (UI tests run effects on a test dispatcher).
+        router.requests.collect { request -> withContext(Dispatchers.Main.immediate) { handle(nav, request) } }
     }
 
     Scaffold(
@@ -155,7 +158,9 @@ fun MainScaffold(root: RootViewModel) {
                             pickImage = root.uploader::read,
                         )
                     } else {
-                        LaunchedEffect(Unit) { nav.popBackStack() }
+                        // The session ended (left, removed): drop the chat entry. Popping by route is a no-op when
+                        // the router's close request got there first, so Nearby's own entry is never popped.
+                        LaunchedEffect(Unit) { nav.popBackStack<ChatRoute>(inclusive = true) }
                     }
                 }
             }
@@ -220,7 +225,7 @@ private fun handle(nav: NavHostController, request: NavRequest) {
             selectTab(nav, AppTab.Nearby)
             nav.navigate(ChatRoute) { launchSingleTop = true }
         }
-        NavRequest.CloseChat -> if (nav.currentDestination?.hasRoute<ChatRoute>() == true) nav.popBackStack()
+        NavRequest.CloseChat -> nav.popBackStack<ChatRoute>(inclusive = true)
         is NavRequest.SwitchTab -> selectTab(nav, request.tab)
         is NavRequest.Open -> {
             selectTab(nav, request.tab)

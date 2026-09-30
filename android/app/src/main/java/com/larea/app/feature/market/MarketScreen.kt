@@ -144,9 +144,9 @@ fun MarketScreen(marketEnabled: Boolean, onOpenListing: (String) -> Unit, bottom
 
     Box(Modifier.fillMaxSize().background(c.grouped)) {
         if (state.mode == MarketMode.Map) {
-            LareaMap(controller = map, modifier = Modifier.fillMaxSize(), attributionTopMargin = 140.dp) {
+            LareaMap(controller = map, modifier = Modifier.fillMaxSize(), attributionTopMargin = 180.dp) {
                 state.fix?.let { fix ->
-                    MapCircle(map, fix.lat, fix.lng, state.config.radiusM, c.brandPrimary, strokeAlpha = 0.35f)
+                    MapCircle(map, fix.lat, fix.lng, state.config.radiusM, c.brandPrimary, strokeAlpha = 0.35f, fillAlpha = 0.06f)
                     UserDot(map, fix.lat, fix.lng)
                 }
                 state.listings.forEach { listing ->

@@ -168,7 +168,7 @@ fun ChatScreen(session: ChatSession, venueName: String, onLeft: () -> Unit, onBa
         )
         if (state.connection != ConnectionState.Connected) Banner(BannerKind.Info, "Reconnecting…")
         if (state.weakGps) Banner(BannerKind.Warning, "Weak GPS signal. We may not be able to confirm you're still here.")
-        if (state.isMuted) Banner(BannerKind.Danger, "You can't send messages until ${Dates.time(state.mutedUntil)}.")
+        if (state.isMuted) Banner(BannerKind.Danger, "You can't send messages until ${Dates.short(state.mutedUntil)}.")
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (rows.isEmpty() && !state.loading) {

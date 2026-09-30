@@ -35,6 +35,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.larea.app.ui.theme.Larea
+import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
@@ -42,12 +43,14 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import kotlin.math.cos
+import kotlin.math.log2
 import kotlin.math.max
 import kotlin.math.roundToInt
 
 private const val LIGHT_STYLE = "https://tiles.openfreemap.org/styles/liberty"
 private const val DARK_STYLE = "https://tiles.openfreemap.org/styles/dark"
 private const val METERS_PER_DEGREE = 111_320.0
+private const val EARTH_CIRCUMFERENCE_M = 40_075_016.686
 
 /** Where the map is looking: its centre plus half the larger visible span in metres. */
 data class MapViewport(val lat: Double, val lng: Double, val radiusM: Double)
@@ -63,6 +66,7 @@ class MapController {
         internal set
     private var pendingMove: (() -> Unit)? = null
     internal var heightPx = 0
+    internal var widthPx = 0
 
     /** Share of the map height covered from below (the bottom panel); camera moves centre in the rest. */
     var coveredFraction by mutableStateOf(0f)
@@ -72,20 +76,31 @@ class MapController {
     fun toScreen(lat: Double, lng: Double): Offset? =
         map?.projection?.toScreenLocation(LatLng(lat, lng))?.let { Offset(it.x, it.y) }
 
-    fun metersPerPixel(lat: Double): Double = map?.projection?.getMetersPerPixelAtLatitude(lat) ?: 1.0
+    /** Screen pixels per metre here, measured on the projection (no assumptions about MapLibre's units). */
+    fun pixelsPerMeter(lat: Double, lng: Double): Double {
+        val projection = map?.projection ?: return 0.0
+        val a = projection.toScreenLocation(LatLng(lat, lng))
+        val b = projection.toScreenLocation(LatLng(lat + 1_000 / METERS_PER_DEGREE, lng))
+        return kotlin.math.hypot((a.x - b.x).toDouble(), (a.y - b.y).toDouble()) / 1_000
+    }
 
     /** Centres on a point showing about `spanM` metres across (MapKit's region with lat/lng metres). */
     fun show(lat: Double, lng: Double, spanM: Double, animated: Boolean = true) {
         val move = {
             val map = map
             if (map != null) {
-                // MapLibre rejects bounds outside the valid range (MapKit clamps silently), so clamp here.
                 val half = spanM.coerceIn(100.0, 2_000_000.0) / 2
-                val dLat = half / METERS_PER_DEGREE
-                val dLng = (half / (METERS_PER_DEGREE * cos(Math.toRadians(lat)).coerceAtLeast(0.01))).coerceAtMost(179.0)
-                val bounds = LatLngBounds.from((lat + dLat).coerceAtMost(85.0), lng + dLng, (lat - dLat).coerceAtLeast(-85.0), lng - dLng)
-                val bottom = (heightPx * coveredFraction.coerceIn(0f, 0.7f)).toInt()
-                val update = CameraUpdateFactory.newLatLngBounds(bounds, 0, 0, 0, bottom)
+                // Same scale as MapKit's region: the span fills the narrower side of the map (the width, in
+                // portrait). Then move the target south so the point sits in the middle of the part the
+                // bottom panel leaves uncovered.
+                val sidePx = minOf(widthPx, heightPx).takeIf { it > 0 } ?: 1080
+                val wanted = sidePx / (2 * half)
+                // Web Mercator with 512-pixel tiles in physical pixels (what MapLibre Android uses); computed
+                // directly because a map view that has not been laid out yet has no usable projection.
+                val zoom = log2(EARTH_CIRCUMFERENCE_M * cos(Math.toRadians(lat)) * wanted / 512).coerceIn(1.0, 20.0)
+                val offsetPx = heightPx * coveredFraction.coerceIn(0f, 0.7f) / 2
+                val target = LatLng((lat - offsetPx / wanted / METERS_PER_DEGREE).coerceIn(-85.0, 85.0), lng)
+                val update = CameraUpdateFactory.newCameraPosition(CameraPosition.Builder().target(target).zoom(zoom).bearing(0.0).build())
                 if (animated) map.animateCamera(update, 450) else map.moveCamera(update)
             }
         }
@@ -118,7 +133,7 @@ fun rememberMapController(): MapController = remember { MapController() }
 fun LareaMap(
     controller: MapController,
     modifier: Modifier = Modifier,
-    attributionTopMargin: Dp = 72.dp,
+    attributionTopMargin: Dp = 116.dp,
     onCameraIdle: (MapViewport) -> Unit = {},
     onMapClick: () -> Unit = {},
     overlay: @Composable BoxScope.() -> Unit = {},
@@ -180,7 +195,7 @@ fun LareaMap(
         }
         onDispose { }
     }
-    Box(modifier.onSizeChanged { controller.heightPx = it.height }) {
+    Box(modifier.onSizeChanged { controller.heightPx = it.height; controller.widthPx = it.width }) {
         AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
         Box(Modifier.fillMaxSize()) { overlay() }
     }
@@ -202,15 +217,15 @@ fun Modifier.placeAt(controller: MapController, lat: Double, lng: Double, anchor
 
 /** A translucent circle of `radiusM` metres around a point (the 200 m join radius, the market radius). */
 @Composable
-fun MapCircle(controller: MapController, lat: Double, lng: Double, radiusM: Double, color: Color, strokeAlpha: Float = 0.6f) {
+fun MapCircle(controller: MapController, lat: Double, lng: Double, radiusM: Double, color: Color, strokeAlpha: Float = 0.6f, fillAlpha: Float = 0.12f) {
     Box(
         Modifier
             .fillMaxSize()
             .drawBehind {
                 @Suppress("UNUSED_EXPRESSION") controller.cameraTick
                 val center = controller.toScreen(lat, lng) ?: return@drawBehind
-                val radiusPx = (radiusM / controller.metersPerPixel(lat)).toFloat()
-                drawCircle(color.copy(alpha = 0.12f), radiusPx, center)
+                val radiusPx = (radiusM * controller.pixelsPerMeter(lat, lng)).toFloat()
+                drawCircle(color.copy(alpha = fillAlpha), radiusPx, center)
                 drawCircle(color.copy(alpha = strokeAlpha), radiusPx, center, style = Stroke(width = 1.5.dp.toPx()))
             },
     )

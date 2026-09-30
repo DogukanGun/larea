@@ -22,6 +22,7 @@ class LareaApplication : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         super.onCreate()
         MapLibre.getInstance(this)
+        if (BuildConfig.DEBUG) com.larea.app.core.MainThreadWatchdog.start()
     }
 
     /** Media is public and immutable; one cache shared by chat photos, listings and the viewer (as iOS `ImageCache`). */
