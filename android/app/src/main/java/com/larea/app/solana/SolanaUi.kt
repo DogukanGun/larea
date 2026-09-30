@@ -35,6 +35,10 @@ interface SolanaUi {
     @Composable
     fun TipDialog(venueId: String, recipient: Author, onDismiss: () -> Unit) {}
 
+    /** Pays a USDC deal from the wallet into Larea's escrow, reporting each step. */
+    suspend fun payOrder(orderId: String, step: (String) -> Unit): Result<Unit> =
+        Result.failure(IllegalStateException("This deal is paid in USDC. Pay for it in the Larea app from the Solana dApp Store."))
+
     /** Wallet, stamps and levels on the Profile tab. */
     @Composable
     fun ProfileSection() {}

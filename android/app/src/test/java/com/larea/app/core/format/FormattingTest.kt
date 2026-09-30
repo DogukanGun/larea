@@ -76,4 +76,10 @@ class FormattingTest {
         assertEquals("in 2 h", Dates.relative("2027-01-15T10:00:00Z", Dates.parseMillis("2027-01-15T08:00:00Z")!!))
         assertEquals("", Dates.relative(null, now))
     }
+
+    @Test
+    fun `formats USDC prices without an ISO currency`() {
+        assertEquals("12.50 USDC", Money.format(1250, "usdc", Locale.US))
+        assertEquals("15 USDC", Money.format(1500, "usdc", Locale.GERMANY))
+    }
 }

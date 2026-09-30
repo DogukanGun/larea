@@ -2,6 +2,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import bs58 from 'bs58';
 import {
   type Confirmation,
+  type CustodyTransferInput,
+  type CustodyWallet,
   type PreparedTransaction,
   type SolanaClient,
   type StampMintInput,
@@ -40,6 +42,25 @@ export class FakeSolanaClient implements SolanaClient {
 
   buildStampMint(input: StampMintInput): Promise<PreparedTransaction> {
     return Promise.resolve(this.prepare({ kind: 'stamp', input, nonce: randomBytes(4).toString('hex') }));
+  }
+
+  /** Transfers Larea sent from its custody wallets, in order. */
+  readonly custodySent: (Omit<CustodyTransferInput, 'amount'> & { amount: string; signature: string })[] = [];
+  /** Makes the next custody transfer fail (an empty escrow, an RPC outage). */
+  failCustody = false;
+
+  custodyAddress(wallet: CustodyWallet): string {
+    return wallet === 'escrow' ? 'EscrowXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX' : 'RewardsXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+  }
+
+  sendFromCustody(input: CustodyTransferInput): Promise<string> {
+    if (this.failCustody) {
+      this.failCustody = false;
+      return Promise.reject(new Error('custody transfer failed'));
+    }
+    const signature = bs58.encode(randomBytes(64));
+    this.custodySent.push({ ...input, amount: input.amount.toString(), signature });
+    return Promise.resolve(signature);
   }
 
   /** Transfers the tests built, in order (amounts as strings). */

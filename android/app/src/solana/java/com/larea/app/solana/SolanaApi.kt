@@ -7,6 +7,7 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
 import com.larea.app.core.network.LocationFixBody
+import com.larea.app.core.network.Order
 
 @Serializable
 data class SiwsChallenge(
@@ -101,6 +102,9 @@ data class TipView(
 @Serializable
 data class TipResult(val tip: TipView, val transaction: String, val cluster: String = "devnet")
 
+@Serializable
+data class OrderPayment(val transaction: String, val cluster: String = "devnet")
+
 /** The dApp Store build's Solana endpoints (see backend/src/solana). */
 interface SolanaApi {
     @POST("solana/wallet/challenge") suspend fun challenge(): SiwsChallenge
@@ -116,4 +120,7 @@ interface SolanaApi {
 
     @POST("venues/{id}/tips") suspend fun tip(@Path("id") venueId: String, @Body body: CreateTipRequest): TipResult
     @POST("solana/tips/{id}/submit") suspend fun submitTip(@Path("id") tipId: String, @Body body: SubmitStampRequest): TipView
+
+    @POST("market/orders/{id}/solana/pay") suspend fun payOrder(@Path("id") orderId: String): OrderPayment
+    @POST("market/orders/{id}/solana/submit") suspend fun submitOrderPayment(@Path("id") orderId: String, @Body body: SubmitStampRequest): Order
 }

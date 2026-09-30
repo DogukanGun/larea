@@ -8,6 +8,8 @@ import java.util.Locale
 /** Prices are integer cents on the wire; shown in the user's locale. */
 object Money {
     fun format(cents: Int, currency: String = "eur", locale: Locale = Locale.getDefault()): String {
+        // USDC is no ISO currency: "12.50 USDC" (Solana dApp Store listings).
+        if (currency.equals("usdc", ignoreCase = true)) return "${editText(cents, locale)} USDC"
         val formatter = NumberFormat.getCurrencyInstance(locale)
         runCatching { formatter.currency = Currency.getInstance(currency.uppercase(Locale.ROOT)) }
         val digits = if (cents % 100 == 0) 0 else 2

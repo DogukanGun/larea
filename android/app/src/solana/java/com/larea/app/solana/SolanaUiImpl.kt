@@ -12,10 +12,13 @@ import javax.inject.Singleton
 class SolanaUiImpl @Inject constructor(
     private val adapter: WalletAdapter,
     private val stamps: StampFlow,
+    private val orders: OrderPayFlow,
 ) : SolanaUi {
     override val enabled = true
 
     override fun attach(activity: ComponentActivity) = adapter.attach(activity)
+
+    override suspend fun payOrder(orderId: String, step: (String) -> Unit): Result<Unit> = orders.pay(orderId, step)
 
     override suspend fun beforeJoin(venueId: String, fix: Fix, step: (String) -> Unit): Result<Unit> = stamps.ensureStamp(venueId, fix, step)
 

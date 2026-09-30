@@ -24,7 +24,7 @@ import { TABLES, assertTransition } from './state-machine.js';
 const OFFER_INCLUDE = {
   offerer: { select: { id: true, displayName: true } },
   order: { select: { id: true } },
-  listing: { select: { id: true, ownerId: true, title: true, kind: true, priceCents: true, status: true, publicLat: true, publicLng: true, expiresAt: true, images: { orderBy: { position: 'asc' as const }, take: 1, include: { media: { select: MEDIA_SUMMARY_SELECT } } } } },
+  listing: { select: { id: true, ownerId: true, title: true, kind: true, priceCents: true, paymentRail: true, status: true, publicLat: true, publicLng: true, expiresAt: true, images: { orderBy: { position: 'asc' as const }, take: 1, include: { media: { select: MEDIA_SUMMARY_SELECT } } } } },
 } as const;
 
 @Injectable()
@@ -69,7 +69,7 @@ export class OffersService {
   }
 
   /** A price proposed on someone else's listing; the caller must be within reach. */
-  async create(user: UserSnapshot, listingId: string, dto: CreateOfferDto): Promise<OfferView> {
+  async create(user: UserSnapshot, listingId: string, dto: CreateOfferDto, build?: string): Promise<OfferView> {
     this.listings.assertMuted(user);
     await this.listings.assertAccountOldEnough(user.id);
     this.listings.assertPriceInRange(dto.amountCents);
@@ -86,8 +86,16 @@ export class OffersService {
     }
     const existing = await this.prisma.offer.findFirst({ where: { listingId, offererId: user.id, status: 'PENDING' } });
     if (existing) throw conflict('OFFER_EXISTS', 'You already have an open offer on this listing.');
-    // On a help request the helper gets paid, so they need a payout account before offering.
-    if (this.paymentsOn && listing.kind === 'REQUEST' && !(await this.connect.isPayoutReady(user.id))) {
+    if (listing.paymentRail === 'SOLANA_USDC') {
+      // USDC deals run through wallets, which only the Solana dApp Store build has.
+      if (build !== 'solana' || !this.env.SOLANA_ENABLED) {
+        throw conflict('SOLANA_APP_REQUIRED', 'This listing is paid in USDC. Make your offer in the Larea app from the Solana dApp Store.');
+      }
+      if (!(await this.prisma.wallet.findUnique({ where: { userId: user.id } }))) {
+        throw conflict('WALLET_REQUIRED', 'Connect a wallet in your profile to trade in USDC.');
+      }
+    } else if (this.paymentsOn && listing.kind === 'REQUEST' && !(await this.connect.isPayoutReady(user.id))) {
+      // On a help request the helper gets paid, so they need a payout account before offering.
       throw forbidden('PAYOUTS_NOT_READY', 'Set up payouts before offering to help.', { action: 'stripe_onboarding' });
     }
 
@@ -124,7 +132,14 @@ export class OffersService {
     if (offer.listing.status === 'RESERVED') throw conflict('LISTING_RESERVED', 'Another offer is already being completed.');
     assertTransition(TABLES.LISTING, offer.listing.status, 'RESERVED', 'listing');
     const parties = OffersService.parties(offer.listing, offer.offererId);
-    if (this.paymentsOn) {
+    const usdc = offer.listing.paymentRail === 'SOLANA_USDC' && this.env.SOLANA_ENABLED;
+    if (usdc) {
+      if (!(await this.prisma.wallet.findUnique({ where: { userId: parties.payeeId } }))) {
+        throw conflict('WALLET_REQUIRED', parties.payeeId === user.id ? 'Connect a wallet to receive USDC before accepting.' : 'The helper has no wallet connected.');
+      }
+      await this.orders.assertWithinDailyCap(parties.payerId, offer.amountCents);
+      await this.orders.assertWithinDailyCap(parties.payeeId, offer.amountCents);
+    } else if (this.paymentsOn) {
       if (!(await this.connect.isPayoutReady(parties.payeeId))) {
         throw forbidden('PAYOUTS_NOT_READY', parties.payeeId === user.id ? 'Set up payouts before accepting an offer.' : 'The helper has no payout account yet.', { action: 'stripe_onboarding' });
       }
@@ -139,8 +154,16 @@ export class OffersService {
       if (accepted.count !== 1) throw conflict('INVALID_STATE', 'This offer was already answered.');
     });
     let order: OrderView | null = null;
-    if (this.paymentsOn) {
-      const row = await this.orders.createForOffer({ offerId, listingId: offer.listingId, listingTitle: offer.listing.title, payerId: parties.payerId, payeeId: parties.payeeId, amountCents: offer.amountCents });
+    if (usdc || this.paymentsOn) {
+      const row = await this.orders.createForOffer({
+        offerId,
+        listingId: offer.listingId,
+        listingTitle: offer.listing.title,
+        payerId: parties.payerId,
+        payeeId: parties.payeeId,
+        amountCents: offer.amountCents,
+        paymentRail: usdc ? 'SOLANA_USDC' : 'STRIPE',
+      });
       order = this.orders.toView(row, user.id);
     }
     this.bus.toUser(offer.offererId, { type: 'market_update', kind: 'offer_accepted', listingId: offer.listingId, offerId, orderId: order?.id });

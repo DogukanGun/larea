@@ -3,12 +3,13 @@ import { badRequest, conflict, forbidden, notFound, tooMany, unavailable } from 
 import type { UserSnapshot } from '../common/types.js';
 import { InjectEnv } from '../config/inject-env.js';
 import type { Env } from '../config/env.js';
-import type { Order, OrderStatus } from '../generated/prisma/client.js';
+import { type Order, type OrderStatus, type PaymentRail, Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../infra/prisma/prisma.service.js';
 import { RedisService } from '../infra/redis/redis.service.js';
 import { MEDIA_SUMMARY_SELECT, MediaService, type MediaSummary } from '../media/media.service.js';
 import type { MarketUpdateKind } from '../realtime/protocol.js';
 import { RealtimeBus } from '../realtime/realtime.bus.js';
+import { SOLANA_CLIENT, type SolanaClient, SolanaUnavailableError, TransactionMismatchError } from '../solana/solana.client.js';
 import { computeFee } from './fees.js';
 import { HANDOVER_LOCK_MS, HANDOVER_MAX_ATTEMPTS, generateHandoverCode, handoverCodesMatch } from './handover.js';
 import { TABLES, assertTransition, orderCan } from './state-machine.js';
@@ -27,6 +28,10 @@ export interface OrderView {
   feeCents: number;
   payoutCents: number;
   currency: string;
+  /** SOLANA_USDC deals are paid from the buyer's wallet into Larea's escrow and paid out on approval. */
+  paymentRail: PaymentRail;
+  /** SOLANA_USDC: the escrow payment, payout and refund transactions, once they exist. */
+  solana: { paySignature: string | null; payoutSignature: string | null; refundSignature: string | null } | null;
   status: OrderStatus;
   cancelReason: string | null;
   /** Payer only, while the order is paid and waiting for the handover. */
@@ -68,6 +73,7 @@ export class OrdersService {
     private readonly connect: StripeConnectService,
     private readonly bus: RealtimeBus,
     @Inject(STRIPE_CLIENT) private readonly stripe: StripeClient,
+    @Inject(SOLANA_CLIENT) private readonly solana: SolanaClient,
   ) {}
 
   // MARK: views
@@ -88,6 +94,11 @@ export class OrdersService {
       feeCents: row.feeCents,
       payoutCents: row.amountCents - row.feeCents,
       currency: row.currency,
+      paymentRail: row.paymentRail,
+      solana:
+        row.paymentRail === 'SOLANA_USDC'
+          ? { paySignature: row.solanaPaySignature, payoutSignature: row.payoutSignature, refundSignature: row.refundSignature }
+          : null,
       status: row.status,
       cancelReason: row.cancelReason,
       handoverCode: role === 'payer' && row.status === 'PAID' ? row.handoverCode : null,
@@ -105,6 +116,8 @@ export class OrdersService {
   private translate(err: unknown): never {
     if (err instanceof PaymentsUnavailableError) throw unavailable('PAYMENTS_UNAVAILABLE', "Payments aren't available right now. Please try again in a moment.");
     if (err instanceof PaymentError) throw conflict('PAYMENT_ERROR', err.message);
+    if (err instanceof SolanaUnavailableError) throw unavailable('SOLANA_UNAVAILABLE', 'Solana is not reachable right now. Please try again in a moment.');
+    if (err instanceof TransactionMismatchError) throw badRequest('TRANSACTION_MISMATCH', 'The signed transaction is not the one Larea prepared.');
     throw err;
   }
 
@@ -141,8 +154,17 @@ export class OrdersService {
   }
 
   /** Called once an offer is accepted; the payer has MARKET_PAYMENT_WINDOW_HOURS to pay. */
-  async createForOffer(input: { offerId: string; listingId: string; listingTitle: string; payerId: string; payeeId: string; amountCents: number }): Promise<OrderRow> {
+  async createForOffer(input: {
+    offerId: string;
+    listingId: string;
+    listingTitle: string;
+    payerId: string;
+    payeeId: string;
+    amountCents: number;
+    paymentRail?: PaymentRail;
+  }): Promise<OrderRow> {
     const fee = computeFee(input.amountCents, this.env.MARKET_FEE_PERCENT, this.env.MARKET_FEE_MIN_CENTS);
+    const usdc = input.paymentRail === 'SOLANA_USDC';
     return this.prisma.order.create({
       data: {
         listingId: input.listingId,
@@ -151,7 +173,8 @@ export class OrdersService {
         payeeId: input.payeeId,
         amountCents: fee.amountCents,
         feeCents: fee.feeCents,
-        currency: this.env.MARKET_CURRENCY,
+        currency: usdc ? 'usdc' : this.env.MARKET_CURRENCY,
+        paymentRail: input.paymentRail ?? 'STRIPE',
         listingTitle: input.listingTitle,
         paymentDueAt: new Date(Date.now() + this.env.MARKET_PAYMENT_WINDOW_HOURS * 3_600_000),
       },
@@ -179,6 +202,7 @@ export class OrdersService {
       const row = await this.prisma.order.findUnique({ where: { id: orderId }, include: { payer: { select: { email: true } } } });
       if (!row || (row.payerId !== user.id && row.payeeId !== user.id)) throw notFound('Deal not found.');
       if (row.payerId !== user.id) throw forbidden('FORBIDDEN', 'Only the buyer pays for this deal.');
+      if (row.paymentRail === 'SOLANA_USDC') throw conflict('USE_WALLET', 'This deal is paid in USDC from your wallet.');
       if (row.status !== 'AWAITING_PAYMENT') throw conflict('INVALID_STATE', 'This deal is not waiting for payment.');
       if (row.paymentDueAt.getTime() < Date.now()) throw conflict('INVALID_STATE', 'The payment window for this deal has closed.');
       if (row.stripeCheckoutUrl && row.checkoutExpiresAt && row.checkoutExpiresAt.getTime() > Date.now() + 60_000) {
@@ -264,22 +288,20 @@ export class OrdersService {
         if (lock) throw tooMany('Too many wrong codes. Try again in an hour.', { retryAfterSec: HANDOVER_LOCK_MS / 1000 });
         throw badRequest('INVALID_CODE', `That code is wrong. ${HANDOVER_MAX_ATTEMPTS - attempts} attempts left.`);
       }
-      const destination = await this.connect.destinationFor(row.payeeId);
-      if (!destination) throw forbidden('PAYOUTS_NOT_READY', 'Set up payouts before approving.', { action: 'stripe_onboarding' });
+      if (row.paymentRail === 'STRIPE' && !(await this.connect.destinationFor(row.payeeId))) {
+        throw forbidden('PAYOUTS_NOT_READY', 'Set up payouts before approving.', { action: 'stripe_onboarding' });
+      }
       try {
-        const transfer = await this.stripe.createTransfer(
-          { amountCents: row.amountCents - row.feeCents, currency: row.currency, destination, orderId, chargeId: row.stripeChargeId },
-          `order:${orderId}:transfer`,
-        );
+        const payout = await this.payOut(row);
         const updated = await this.prisma.order.update({
           where: { id: orderId },
-          data: { status: 'COMPLETED', stripeTransferId: transfer.id, completedAt: new Date(), handoverCode: null },
+          data: { status: 'COMPLETED', ...payout, completedAt: new Date(), handoverCode: null },
           include: ORDER_INCLUDE,
         });
         await this.prisma.listing.updateMany({ where: { id: row.listingId, status: { in: ['ACTIVE', 'RESERVED'] } }, data: { status: 'SOLD' } });
         await this.declineOtherOffers(row.listingId, row.offerId);
         this.notifyBoth(updated, 'order_completed');
-        this.logger.log({ orderId, transferId: transfer.id }, 'order completed');
+        this.logger.log({ orderId, ...payout }, 'order completed');
         return this.toView(updated, user.id);
       } catch (err) {
         this.logger.error({ orderId, err: err instanceof Error ? err.message : String(err) }, 'stripe.transfer.failed');
@@ -294,6 +316,9 @@ export class OrdersService {
       const row = await this.prisma.order.findUnique({ where: { id: orderId }, include: ORDER_INCLUDE });
       if (!row || (row.payerId !== user.id && row.payeeId !== user.id)) throw notFound('Deal not found.');
       const reason = row.payerId === user.id ? 'payer_cancelled' : 'payee_cancelled';
+      if (row.status === 'AWAITING_PAYMENT' && row.solanaPaySignature) {
+        throw conflict('PAYMENT_PENDING', 'A payment for this deal is being confirmed. Try again in a moment.');
+      }
       if (row.status === 'AWAITING_PAYMENT') {
         await this.cancelLocked(row, reason);
       } else if (row.status === 'PAID') {
@@ -320,18 +345,24 @@ export class OrdersService {
   private async refundLocked(orderId: string, reason: string): Promise<void> {
     const row = await this.prisma.order.findUniqueOrThrow({ where: { id: orderId } });
     if (!orderCan(row.status, 'REFUNDED')) throw conflict('INVALID_STATE', 'This deal cannot be refunded.');
-    if (!row.stripePaymentIntentId) throw conflict('INVALID_STATE', 'No payment to refund.');
     try {
-      const refund = await this.stripe.createRefund({ paymentIntentId: row.stripePaymentIntentId, orderId }, `order:${orderId}:refund`);
+      let refunded: { stripeRefundId?: string; refundSignature?: string };
+      if (row.paymentRail === 'SOLANA_USDC') {
+        if (!row.solanaPaySignature || !row.payerWallet) throw conflict('INVALID_STATE', 'No payment to refund.');
+        refunded = { refundSignature: row.refundSignature ?? (await this.fromEscrow(row.payerWallet, row.amountCents, `larea:refund:${orderId}`)) };
+      } else {
+        if (!row.stripePaymentIntentId) throw conflict('INVALID_STATE', 'No payment to refund.');
+        refunded = { stripeRefundId: (await this.stripe.createRefund({ paymentIntentId: row.stripePaymentIntentId, orderId }, `order:${orderId}:refund`)).id };
+      }
       const updated = await this.prisma.order.update({
         where: { id: orderId },
-        data: { status: 'REFUNDED', cancelReason: reason, refundedAt: new Date(), stripeRefundId: refund.id, handoverCode: null },
+        data: { status: 'REFUNDED', cancelReason: reason, refundedAt: new Date(), ...refunded, handoverCode: null },
       });
       await this.reopenListing(row.listingId);
       this.notifyBoth(updated, 'order_refunded');
       this.logger.log({ orderId, reason }, 'order refunded');
     } catch (err) {
-      this.logger.error({ orderId, err: err instanceof Error ? err.message : String(err) }, 'stripe.refund.failed');
+      this.logger.error({ orderId, rail: row.paymentRail, err: err instanceof Error ? err.message : String(err) }, 'refund failed');
       this.translate(err);
     }
   }
@@ -345,6 +376,104 @@ export class OrdersService {
     if (pending.length === 0) return;
     await this.prisma.offer.updateMany({ where: { id: { in: pending.map((o) => o.id) } }, data: { status: 'DECLINED', respondedAt: new Date() } });
     for (const o of pending) this.bus.toUser(o.offererId, { type: 'market_update', kind: 'offer_declined', listingId, offerId: o.id });
+  }
+
+  // MARK: USDC rail (Solana dApp Store build)
+
+  /** Seller's share out of escrow: a Stripe transfer, or USDC from Larea's escrow wallet to the seller's wallet. */
+  private async payOut(row: Order): Promise<{ stripeTransferId?: string; payoutSignature?: string; payeeWallet?: string }> {
+    if (row.paymentRail === 'SOLANA_USDC') {
+      if (row.payoutSignature) return { payoutSignature: row.payoutSignature };
+      const wallet = await this.prisma.wallet.findUnique({ where: { userId: row.payeeId } });
+      if (!wallet) throw forbidden('WALLET_REQUIRED', 'Connect a wallet to receive the USDC before approving.');
+      const signature = await this.fromEscrow(wallet.address, row.amountCents - row.feeCents, `larea:payout:${row.id}`);
+      return { payoutSignature: signature, payeeWallet: wallet.address };
+    }
+    if (row.stripeTransferId) return { stripeTransferId: row.stripeTransferId };
+    const destination = (await this.connect.destinationFor(row.payeeId))!;
+    const transfer = await this.stripe.createTransfer(
+      { amountCents: row.amountCents - row.feeCents, currency: row.currency, destination, orderId: row.id, chargeId: row.stripeChargeId },
+      `order:${row.id}:transfer`,
+    );
+    return { stripeTransferId: transfer.id };
+  }
+
+  /** USDC cents → base units (6 decimals) out of the escrow wallet. */
+  private fromEscrow(to: string, cents: number, memo: string): Promise<string> {
+    return this.solana.sendFromCustody({ wallet: 'escrow', to, token: 'USDC', amount: BigInt(cents) * 10_000n, memo });
+  }
+
+  private async payerOrder(user: UserSnapshot, orderId: string): Promise<Order> {
+    const row = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!row || (row.payerId !== user.id && row.payeeId !== user.id)) throw notFound('Deal not found.');
+    if (row.payerId !== user.id) throw forbidden('FORBIDDEN', 'Only the buyer pays for this deal.');
+    if (row.paymentRail !== 'SOLANA_USDC') throw conflict('USE_CHECKOUT', 'This deal is paid by card.');
+    return row;
+  }
+
+  /** The buyer's wallet pays the full amount into Larea's escrow; returns the transfer for the wallet to sign. */
+  async solanaPay(user: UserSnapshot, orderId: string): Promise<{ transaction: string; cluster: SolanaClient['cluster']; order: OrderView }> {
+    return this.withLock(orderId, async () => {
+      const row = await this.payerOrder(user, orderId);
+      if (row.status !== 'AWAITING_PAYMENT') throw conflict('INVALID_STATE', 'This deal is not waiting for payment.');
+      if (row.paymentDueAt.getTime() < Date.now()) throw conflict('INVALID_STATE', 'The payment window for this deal has closed.');
+      if (row.solanaPaySignature) throw conflict('PAYMENT_PENDING', 'Your payment is on its way. Give it a moment.');
+      const [wallet, escrow] = [await this.prisma.wallet.findUnique({ where: { userId: user.id } }), this.solana.custodyAddress('escrow')];
+      if (!wallet) throw conflict('WALLET_REQUIRED', 'Connect a wallet in your profile to pay in USDC.');
+      if (!escrow) throw unavailable('SOLANA_UNAVAILABLE', "USDC payments aren't available right now.");
+      try {
+        const prepared = await this.solana.buildTransfer({ from: wallet.address, to: escrow, token: 'USDC', amount: BigInt(row.amountCents) * 10_000n, memo: `larea:order:${orderId}` });
+        const updated = await this.prisma.order.update({
+          where: { id: orderId },
+          data: { payerWallet: wallet.address, solanaPayHash: prepared.messageHash, solanaPayExpiresAt: new Date(Date.now() + this.env.SOLANA_PENDING_TTL_SEC * 1000) },
+          include: ORDER_INCLUDE,
+        });
+        return { transaction: prepared.transaction, cluster: this.solana.cluster, order: this.toView(updated, user.id) };
+      } catch (err) {
+        this.translate(err);
+      }
+    });
+  }
+
+  /** Records the payment's signature: sent by Larea (`signedTransaction`, when the wallet only signs) or by the wallet. */
+  async solanaSubmit(user: UserSnapshot, orderId: string, input: { signedTransaction?: string; signature?: string }): Promise<OrderView> {
+    await this.withLock(orderId, async () => {
+      const row = await this.payerOrder(user, orderId);
+      if (row.status !== 'AWAITING_PAYMENT' || row.solanaPaySignature) return;
+      if (!row.solanaPayHash || !row.solanaPayExpiresAt || row.solanaPayExpiresAt.getTime() < Date.now()) {
+        throw badRequest('PAYMENT_EXPIRED', 'This payment request expired. Please try again.');
+      }
+      try {
+        const signature = input.signedTransaction ? await this.solana.submit(input.signedTransaction, row.solanaPayHash) : input.signature!;
+        await this.prisma.order.update({ where: { id: orderId }, data: { solanaPaySignature: signature } });
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') throw conflict('SIGNATURE_USED', 'This transaction belongs to another payment.');
+        this.translate(err);
+      }
+    });
+    await this.settleSolanaPayment(orderId);
+    return this.get(user, orderId);
+  }
+
+  /**
+   * Checks a reported USDC payment; once it landed, the deal is paid exactly as a card payment would be
+   * (and a payment landing on a deal cancelled meanwhile is refunded by markPaid).
+   */
+  async settleSolanaPayment(orderId: string): Promise<void> {
+    const row = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!row?.solanaPaySignature || !row.solanaPayHash) return;
+    if (row.status !== 'AWAITING_PAYMENT' && !(row.status === 'CANCELLED' && !row.refundSignature)) return;
+    const result = await this.solana.confirm(row.solanaPaySignature, row.solanaPayHash);
+    if (result.state === 'confirmed') {
+      await this.markPaid(orderId, null, null);
+      return;
+    }
+    const expired = row.solanaPayExpiresAt && row.solanaPayExpiresAt.getTime() + 120_000 < Date.now();
+    if (result.state === 'failed' || expired) {
+      // The money never arrived: let the buyer try again.
+      await this.prisma.order.updateMany({ where: { id: orderId, solanaPaySignature: row.solanaPaySignature }, data: { solanaPaySignature: null, solanaPayHash: null, solanaPayExpiresAt: null } });
+      this.logger.warn({ orderId, reason: result.state === 'failed' ? result.error : 'expired' }, 'usdc payment did not land');
+    }
   }
 
   // MARK: webhooks and disputes
@@ -383,11 +512,10 @@ export class OrdersService {
         await this.refundLocked(orderId, 'moderator');
       } else {
         if (!orderCan(row.status, 'COMPLETED')) throw conflict('INVALID_STATE', 'This deal cannot be released.');
-        const destination = await this.connect.destinationFor(row.payeeId);
-        if (!destination) throw conflict('PAYOUTS_NOT_READY', 'The seller has no payout account.');
+        if (row.paymentRail === 'STRIPE' && !(await this.connect.destinationFor(row.payeeId))) throw conflict('PAYOUTS_NOT_READY', 'The seller has no payout account.');
         try {
-          const transfer = row.stripeTransferId ? { id: row.stripeTransferId } : await this.stripe.createTransfer({ amountCents: row.amountCents - row.feeCents, currency: row.currency, destination, orderId, chargeId: row.stripeChargeId }, `order:${orderId}:transfer`);
-          const updated = await this.prisma.order.update({ where: { id: orderId }, data: { status: 'COMPLETED', stripeTransferId: transfer.id, completedAt: new Date(), handoverCode: null } });
+          const payout = await this.payOut(row);
+          const updated = await this.prisma.order.update({ where: { id: orderId }, data: { status: 'COMPLETED', ...payout, completedAt: new Date(), handoverCode: null } });
           this.notifyBoth(updated, 'order_completed');
         } catch (err) {
           this.translate(err);
@@ -403,6 +531,15 @@ export class OrdersService {
 
   /** Unpaid deals past their window are cancelled; paid ones nobody approved are refunded. */
   async sweep(now = new Date()): Promise<{ paymentTimeouts: number; autoRefunds: number }> {
+    // USDC payments the app never reported back: settle them before anything times out.
+    const inFlight = await this.prisma.order.findMany({
+      where: {
+        paymentRail: 'SOLANA_USDC',
+        solanaPaySignature: { not: null },
+        OR: [{ status: 'AWAITING_PAYMENT' }, { status: 'CANCELLED', refundSignature: null }],
+      },
+    });
+    for (const row of inFlight) await this.settleSolanaPayment(row.id).catch((err) => this.logger.warn({ orderId: row.id, err: err instanceof Error ? err.message : String(err) }, 'usdc settle failed'));
     const unpaid = await this.prisma.order.findMany({ where: { status: 'AWAITING_PAYMENT', paymentDueAt: { lt: now } } });
     for (const row of unpaid) {
       await this.withLock(row.id, async () => {

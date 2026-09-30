@@ -9,6 +9,8 @@ export class DisabledSolanaClient implements SolanaClient {
   balances = (): Promise<WalletBalances> => off();
   buildStampMint = (): Promise<PreparedTransaction> => off();
   buildTransfer = (): Promise<PreparedTransaction> => off();
+  custodyAddress = (): string | null => null;
+  sendFromCustody = (): Promise<string> => off();
   submit = (): Promise<string> => off();
   confirm = (): Promise<Confirmation> => off();
   assetsByOwner = (): Promise<string[] | null> => Promise.resolve(null);

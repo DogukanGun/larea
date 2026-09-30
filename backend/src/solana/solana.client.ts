@@ -45,6 +45,18 @@ export interface TransferInput {
   memo: string;
 }
 
+/** Larea's own hot wallets: escrow holds market payments, rewards pays out SKR. */
+export type CustodyWallet = 'escrow' | 'rewards';
+
+export interface CustodyTransferInput {
+  wallet: CustodyWallet;
+  to: string;
+  token: TokenSymbol;
+  /** Base units (6 decimals). */
+  amount: bigint;
+  memo: string;
+}
+
 /**
  * Everything Larea does on Solana, behind one interface so tests use an in-memory fake
  * (the STRIPE_CLIENT pattern). Transactions for the user's wallet are built here, partially signed by
@@ -57,6 +69,10 @@ export interface SolanaClient {
   buildStampMint(input: StampMintInput): Promise<PreparedTransaction>;
   /** An SPL transfer from `from` to `to`, creating the recipient's token account if needed; `from` pays the fee. */
   buildTransfer(input: TransferInput): Promise<PreparedTransaction>;
+  /** The address of one of Larea's custody wallets; null when it is not configured. */
+  custodyAddress(wallet: CustodyWallet): string | null;
+  /** A transfer Larea signs and pays for from a custody wallet; resolves with the confirmed signature. */
+  sendFromCustody(input: CustodyTransferInput): Promise<string>;
   /** Sends a transaction the wallet signed; refuses anything whose message differs from what we built. */
   submit(signedTransaction: string, expectedMessageHash: string): Promise<string>;
   /** Where a sent transaction stands; for mints, the assets it created (checked against the message hash). */

@@ -65,6 +65,7 @@ import com.larea.app.core.network.OrderStatus
 import com.larea.app.core.network.apiCall
 import com.larea.app.core.network.userMessage
 import com.larea.app.feature.market.ConfirmDialog
+import com.larea.app.solana.SolanaUi
 import com.larea.app.ui.components.Avatar
 import com.larea.app.ui.components.Banner
 import com.larea.app.ui.components.BannerKind
@@ -111,6 +112,7 @@ class OrderDetailViewModel @Inject constructor(
     private val api: LareaApi,
     private val store: SessionStore,
     val router: AppRouter,
+    private val solana: SolanaUi,
 ) : ViewModel() {
     val orderId: String = checkNotNull(savedState["id"])
     private val _state = MutableStateFlow(OrderDetailState())
@@ -148,8 +150,9 @@ class OrderDetailViewModel @Inject constructor(
         }
     }
 
-    /** Opens (or resumes) the Stripe Checkout page. */
+    /** Opens (or resumes) the Stripe Checkout page; USDC deals are paid from the wallet instead. */
     fun pay(open: (String) -> Unit) {
+        if (_state.value.order?.paidInUsdc == true) return payWithWallet()
         _state.value.order?.checkout?.url?.let { url ->
             browserOpen = true
             open(url)
@@ -160,6 +163,18 @@ class OrderDetailViewModel @Inject constructor(
             browserOpen = true
             open(session.url)
         })
+    }
+
+    private fun payWithWallet() {
+        if (_state.value.busy) return
+        _state.update { it.copy(busy = true) }
+        viewModelScope.launch {
+            solana.payOrder(orderId) { step -> _state.update { it.copy(banner = BannerKind.Info to step) } }
+                .onSuccess { _state.update { it.copy(banner = BannerKind.Info to "Paid. Show your handover code when you meet.") } }
+                .onFailure { e -> _state.update { it.copy(banner = null, notice = e.userMessage()) } }
+            load()
+            _state.update { it.copy(busy = false) }
+        }
     }
 
     fun approve(code: String, onDone: () -> Unit) = run(

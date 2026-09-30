@@ -60,6 +60,7 @@ export class ListingsService {
       description: row.description,
       priceCents: row.priceCents,
       currency: row.currency,
+      paymentRail: row.paymentRail,
       status: row.status,
       owner: row.owner,
       mine: row.ownerId === viewerId,
@@ -135,7 +136,15 @@ export class ListingsService {
 
   // MARK: create / read / update
 
-  async create(user: UserSnapshot, dto: CreateListingDto): Promise<ListingDetailView & { notice?: string }> {
+  /** Listings from the Solana build are paid in USDC when the owner has a wallet to receive it. */
+  private async railFor(userId: string, build?: string): Promise<{ paymentRail: 'STRIPE' | 'SOLANA_USDC'; currency: string }> {
+    if (build === 'solana' && this.env.SOLANA_ENABLED && (await this.prisma.wallet.findUnique({ where: { userId } }))) {
+      return { paymentRail: 'SOLANA_USDC', currency: 'usdc' };
+    }
+    return { paymentRail: 'STRIPE', currency: this.env.MARKET_CURRENCY };
+  }
+
+  async create(user: UserSnapshot, dto: CreateListingDto, build?: string): Promise<ListingDetailView & { notice?: string }> {
     this.assertMuted(user);
     await this.assertAccountOldEnough(user.id);
     this.assertPriceInRange(dto.priceCents);
@@ -164,7 +173,7 @@ export class ListingsService {
         title,
         description,
         priceCents: dto.priceCents,
-        currency: this.env.MARKET_CURRENCY,
+        ...(await this.railFor(user.id, build)),
         lat: fix.lat,
         lng: fix.lng,
         geohash7: snapped.geohash,

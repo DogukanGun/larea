@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
@@ -26,8 +26,8 @@ export class ListingsController {
   @Post()
   @RateLimit({ limit: 5, windowSec: 3600 }, { limit: 20, windowSec: 86_400 })
   @ApiOperation({ summary: 'Post a listing at your current location (shown to others approximately); text and photos are moderated' })
-  create(@CurrentUser() user: UserSnapshot, @Body() dto: CreateListingDto): Promise<ListingDetailView> {
-    return this.listings.create(user, dto);
+  create(@CurrentUser() user: UserSnapshot, @Body() dto: CreateListingDto, @Headers('x-larea-build') build?: string): Promise<ListingDetailView> {
+    return this.listings.create(user, dto, build);
   }
 
   @Get()
@@ -71,7 +71,7 @@ export class ListingsController {
   @Post(':id/offers')
   @RateLimit({ limit: 10, windowSec: 3600 })
   @ApiOperation({ summary: 'Propose a price (or offer to help) from within reach of the listing' })
-  offer(@CurrentUser() user: UserSnapshot, @Param('id') id: string, @Body() dto: CreateOfferDto): Promise<OfferView> {
-    return this.offers.create(user, id, dto);
+  offer(@CurrentUser() user: UserSnapshot, @Param('id') id: string, @Body() dto: CreateOfferDto, @Headers('x-larea-build') build?: string): Promise<OfferView> {
+    return this.offers.create(user, id, dto, build);
   }
 }

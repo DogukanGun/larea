@@ -1,7 +1,7 @@
 /**
  * End-to-end check of RealSolanaClient against the configured cluster (local validator or devnet):
  * a throwaway wallet funded by the authority mints a stamp with a level badge, then tips a second
- * wallet 1.5 test USDC. Usage: node dist/scripts/solana-smoke.js
+ * wallet 1.5 test USDC, then pays 2 USDC into escrow and gets 1.8 paid out. Usage: node dist/scripts/solana-smoke.js
  */
 import { generateSigner, signTransaction, sol } from '@metaplex-foundation/umi';
 import { createAssociatedToken, fetchToken, findAssociatedTokenPda, mintTokensTo, transferSol } from '@metaplex-foundation/mpl-toolbox';
@@ -24,6 +24,8 @@ const env = {
   SOLANA_LEVEL_COLLECTION: e.SOLANA_LEVEL_COLLECTION,
   USDC_MINT: e.USDC_MINT,
   SKR_MINT: e.SKR_MINT,
+  SOLANA_ESCROW_SECRET: e.SOLANA_ESCROW_SECRET,
+  SOLANA_REWARDS_SECRET: e.SOLANA_REWARDS_SECRET,
 };
 if (!env.SOLANA_AUTHORITY_SECRET || !env.SOLANA_STAMP_TREE) {
   console.error('run solana:setup first');
@@ -68,4 +70,13 @@ const tip = await client.buildTransfer({ from: user.publicKey.toString(), to: fr
 await signSubmitConfirm('tip', tip.transaction, tip.messageHash);
 const received = await fetchToken(umi, findAssociatedTokenPda(umi, { mint: usdc, owner: friend.publicKey })[0]);
 console.log('friend received', Number(received.amount) / 1e6, 'USDC');
-process.exit(received.amount === 1_500_000n ? 0 : 1);
+if (received.amount !== 1_500_000n) process.exit(1);
+
+// Market: the user pays 2 USDC into escrow, Larea pays 1.8 out to the friend (the seller).
+const escrow = client.custodyAddress('escrow')!;
+const payment = await client.buildTransfer({ from: user.publicKey.toString(), to: escrow, token: 'USDC', amount: 2_000_000n, memo: 'larea:order:smoke' });
+await signSubmitConfirm('escrow payment', payment.transaction, payment.messageHash);
+const payout = await client.sendFromCustody({ wallet: 'escrow', to: friend.publicKey.toString(), token: 'USDC', amount: 1_800_000n, memo: 'larea:payout:smoke' });
+const after = await fetchToken(umi, findAssociatedTokenPda(umi, { mint: usdc, owner: friend.publicKey })[0]);
+console.log('payout', payout, '→ friend now has', Number(after.amount) / 1e6, 'USDC');
+process.exit(after.amount === 3_300_000n ? 0 : 1);

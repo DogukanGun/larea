@@ -59,6 +59,8 @@ data class Listing(
     val description: String = "",
     val priceCents: Int = 0,
     val currency: String = "eur",
+    /** SOLANA_USDC listings are bought in the Solana dApp Store build. */
+    val paymentRail: String = "STRIPE",
     @SerialName("status") val statusRaw: String? = null,
     val owner: Author,
     val mine: Boolean = false,
@@ -164,6 +166,10 @@ enum class OrderStatus(val raw: String, val label: String) {
 @Serializable
 data class CheckoutSession(val url: String, val expiresAt: String? = null)
 
+/** Transactions of a USDC deal: payment into escrow, payout to the seller, refund to the buyer. */
+@Serializable
+data class OrderSolana(val paySignature: String? = null, val payoutSignature: String? = null, val refundSignature: String? = null)
+
 @Serializable
 data class Order(
     val id: String,
@@ -177,6 +183,9 @@ data class Order(
     val feeCents: Int = 0,
     val payoutCents: Int = amountCents - feeCents,
     val currency: String = "eur",
+    /** SOLANA_USDC: paid from the buyer's wallet into Larea's escrow (Solana dApp Store build). */
+    val paymentRail: String = "STRIPE",
+    val solana: OrderSolana? = null,
     @SerialName("status") val statusRaw: String? = null,
     val cancelReason: String? = null,
     val handoverCode: String? = null,
@@ -191,6 +200,7 @@ data class Order(
 ) {
     val status: OrderStatus get() = OrderStatus.from(statusRaw)
     val isPayer: Boolean get() = role == "payer"
+    val paidInUsdc: Boolean get() = paymentRail == "SOLANA_USDC"
     val counterpart: Author get() = if (isPayer) payee else payer
 }
 

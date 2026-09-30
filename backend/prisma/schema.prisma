@@ -109,6 +109,12 @@ enum OfferStatus {
   EXPIRED
 }
 
+/// How a deal is paid: card through Stripe, or USDC through Larea's Solana escrow (dApp Store build).
+enum PaymentRail {
+  STRIPE
+  SOLANA_USDC
+}
+
 enum OrderStatus {
   AWAITING_PAYMENT
   PAID
@@ -434,6 +440,7 @@ model Listing {
   description      String          @default("")
   priceCents       Int
   currency         String          @default("eur")
+  paymentRail      PaymentRail     @default(STRIPE)
   status           ListingStatus   @default(ACTIVE)
   lat              Float
   lng              Float
@@ -543,6 +550,16 @@ model Order {
   stripeChargeId          String?
   stripeTransferId        String?
   stripeRefundId          String?
+  paymentRail             PaymentRail @default(STRIPE)
+  /// SOLANA_USDC: the buyer's wallet and the escrow payment Larea built for it.
+  payerWallet             String?
+  solanaPayHash           String?
+  solanaPaySignature      String?     @unique
+  solanaPayExpiresAt      DateTime?
+  /// SOLANA_USDC: escrow → seller on approval, escrow → buyer on refund.
+  payeeWallet             String?
+  payoutSignature         String?
+  refundSignature         String?
   paymentDueAt            DateTime
   paidAt                  DateTime?
   approvalDeadlineAt      DateTime?

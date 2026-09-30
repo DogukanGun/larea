@@ -7,7 +7,10 @@ export interface ListingView {
   title: string;
   description: string;
   priceCents: number;
+  /** "usdc" on SOLANA_USDC listings (priced in USDC cents). */
   currency: string;
+  /** SOLANA_USDC listings are bought in the Solana dApp Store build, paid through Larea's escrow. */
+  paymentRail: 'STRIPE' | 'SOLANA_USDC';
   status: string;
   owner: { id: string; displayName: string };
   /** The caller owns this listing. */

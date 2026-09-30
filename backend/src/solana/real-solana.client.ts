@@ -9,9 +9,12 @@ import type { Env } from '../config/env.js';
 import { createLareaUmi, keypairFromSecret, TOKEN_DECIMALS } from './chain.js';
 import {
   type Confirmation,
+  type CustodyTransferInput,
+  type CustodyWallet,
   type MintedAsset,
   type PreparedTransaction,
   type SolanaClient,
+  SolanaUnavailableError,
   type StampMintInput,
   TransactionMismatchError,
   type TransferInput,
@@ -20,7 +23,17 @@ import {
 
 type SolanaEnv = Pick<
   Env,
-  'SOLANA_CLUSTER' | 'SOLANA_RPC_URL' | 'SOLANA_DAS_URL' | 'SOLANA_AUTHORITY_SECRET' | 'SOLANA_STAMP_TREE' | 'SOLANA_STAMP_COLLECTION' | 'SOLANA_LEVEL_COLLECTION' | 'USDC_MINT' | 'SKR_MINT'
+  | 'SOLANA_CLUSTER'
+  | 'SOLANA_RPC_URL'
+  | 'SOLANA_DAS_URL'
+  | 'SOLANA_AUTHORITY_SECRET'
+  | 'SOLANA_ESCROW_SECRET'
+  | 'SOLANA_REWARDS_SECRET'
+  | 'SOLANA_STAMP_TREE'
+  | 'SOLANA_STAMP_COLLECTION'
+  | 'SOLANA_LEVEL_COLLECTION'
+  | 'USDC_MINT'
+  | 'SKR_MINT'
 >;
 
 const hashMessage = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
@@ -30,11 +43,15 @@ export class RealSolanaClient implements SolanaClient {
   readonly cluster: SolanaClient['cluster'];
   private readonly umi: Umi;
   private readonly das: (Umi & { rpc: DasApiInterface }) | null;
+  /** One umi per custody wallet, with that wallet as identity and fee payer. */
+  private readonly custody: Partial<Record<CustodyWallet, Umi>> = {};
 
   constructor(private readonly env: SolanaEnv) {
     this.cluster = env.SOLANA_CLUSTER;
     const probe = createLareaUmi(env.SOLANA_RPC_URL);
     this.umi = createLareaUmi(env.SOLANA_RPC_URL, keypairFromSecret(probe, env.SOLANA_AUTHORITY_SECRET!));
+    if (env.SOLANA_ESCROW_SECRET) this.custody.escrow = createLareaUmi(env.SOLANA_RPC_URL, keypairFromSecret(probe, env.SOLANA_ESCROW_SECRET));
+    if (env.SOLANA_REWARDS_SECRET) this.custody.rewards = createLareaUmi(env.SOLANA_RPC_URL, keypairFromSecret(probe, env.SOLANA_REWARDS_SECRET));
     this.das = env.SOLANA_DAS_URL ? (createUmi(env.SOLANA_DAS_URL).use(dasApi()) as Umi & { rpc: DasApiInterface }) : null;
   }
 
@@ -83,7 +100,7 @@ export class RealSolanaClient implements SolanaClient {
 
   async buildTransfer(input: TransferInput): Promise<PreparedTransaction> {
     const payer = createNoopSigner(publicKey(input.from));
-    const mint = publicKey(input.token === 'USDC' ? this.env.USDC_MINT! : this.env.SKR_MINT!);
+    const mint = this.mintOf(input.token);
     const [source] = findAssociatedTokenPda(this.umi, { mint, owner: payer.publicKey });
     const [destination] = findAssociatedTokenPda(this.umi, { mint, owner: publicKey(input.to) });
     const built = await transactionBuilder()
@@ -97,6 +114,30 @@ export class RealSolanaClient implements SolanaClient {
       transaction: Buffer.from(this.umi.transactions.serialize(built)).toString('base64'),
       messageHash: hashMessage(built.serializedMessage),
     };
+  }
+
+  custodyAddress(wallet: CustodyWallet): string | null {
+    return this.custody[wallet]?.identity.publicKey.toString() ?? null;
+  }
+
+  private mintOf(token: TransferInput['token']) {
+    return publicKey(token === 'USDC' ? this.env.USDC_MINT! : this.env.SKR_MINT!);
+  }
+
+  async sendFromCustody(input: CustodyTransferInput): Promise<string> {
+    const umi = this.custody[input.wallet];
+    if (!umi) throw new SolanaUnavailableError(`the ${input.wallet} wallet is not configured`);
+    const mint = this.mintOf(input.token);
+    const to = publicKey(input.to);
+    const [source] = findAssociatedTokenPda(umi, { mint, owner: umi.identity.publicKey });
+    const [destination] = findAssociatedTokenPda(umi, { mint, owner: to });
+    const result = await transactionBuilder()
+      .add(createIdempotentAssociatedToken(umi, { ata: destination, owner: to, mint }))
+      .add(transferTokensChecked(umi, { source, mint, destination, amount: input.amount, decimals: TOKEN_DECIMALS }))
+      .add(addMemo(umi, { memo: input.memo }))
+      .sendAndConfirm(umi, { confirm: { commitment: 'confirmed' } });
+    if (result.result.value.err) throw new Error(`custody transfer failed: ${JSON.stringify(result.result.value.err)}`);
+    return bs58.encode(result.signature);
   }
 
   async submit(signedTransaction: string, expectedMessageHash: string): Promise<string> {

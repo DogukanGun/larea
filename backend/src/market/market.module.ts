@@ -6,6 +6,7 @@ import type { Env } from '../config/env.js';
 import { EnforcementModule } from '../enforcement/enforcement.module.js';
 import { MediaModule } from '../media/media.module.js';
 import { PresenceModule } from '../presence/presence.module.js';
+import { SolanaModule } from '../solana/solana.module.js';
 import { FakeStripeClient } from '../testing/fake-stripe.client.js';
 import { ListingsController } from './listings.controller.js';
 import { ListingsService } from './listings.service.js';
@@ -23,7 +24,7 @@ import { StripeConnectController, StripePublicController } from './stripe/stripe
 import { STRIPE_CLIENT, type StripeClient } from './stripe/stripe.client.js';
 
 @Module({
-  imports: [AuthModule, PresenceModule, BlocksModule, MediaModule, EnforcementModule],
+  imports: [AuthModule, PresenceModule, BlocksModule, MediaModule, EnforcementModule, SolanaModule],
   controllers: [ListingsController, OffersController, OrdersController, StripeConnectController, StripePublicController],
   providers: [
     ListingsService,
