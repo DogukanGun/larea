@@ -229,6 +229,10 @@ data class ChatMessage(
     val caption: String? = null,
     val image: ImageAttachment? = null,
     val poll: PollView? = null,
+    /** The author's loyalty level at this place (Solana build); 0 = none. */
+    val authorLevel: Int = 0,
+    /** "REGULARS" for the Regulars room; null = the main chat. */
+    val room: String? = null,
 ) {
     val kind: MessageKind get() = MessageKind.from(kindRaw)
 }
@@ -248,12 +252,14 @@ data class SendMessageRequest(
     val text: String? = null,
     val mediaId: String? = null,
     val clientKey: String,
+    /** "REGULARS" to post in the Regulars room; null = the main chat. */
+    val room: String? = null,
 ) {
     companion object {
-        fun text(text: String, clientKey: String) = SendMessageRequest(text = text, clientKey = clientKey)
+        fun text(text: String, clientKey: String, room: String? = null) = SendMessageRequest(text = text, clientKey = clientKey, room = room)
 
-        fun image(mediaId: String, caption: String?, clientKey: String) =
-            SendMessageRequest(kind = "IMAGE", text = caption?.takeIf { it.isNotEmpty() }, mediaId = mediaId, clientKey = clientKey)
+        fun image(mediaId: String, caption: String?, clientKey: String, room: String? = null) =
+            SendMessageRequest(kind = "IMAGE", text = caption?.takeIf { it.isNotEmpty() }, mediaId = mediaId, clientKey = clientKey, room = room)
     }
 }
 

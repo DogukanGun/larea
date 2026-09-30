@@ -44,6 +44,8 @@ class RealtimeClient(
     private val store: SessionSource,
     private val refresher: TokenRefreshing,
     private val json: Json,
+    /** Sent as X-Larea-Build ("solana" for the dApp Store build), like REST requests. */
+    private val build: String? = null,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _state = MutableStateFlow(ConnectionState.Disconnected)
@@ -120,7 +122,9 @@ class RealtimeClient(
             }
             _state.value = ConnectionState.Connecting
             val outcome = CompletableDeferred<CloseOutcome>()
-            val request = Request.Builder().url(wsUrl).header("Authorization", "Bearer $token").build()
+            val request = Request.Builder().url(wsUrl).header("Authorization", "Bearer $token")
+                .apply { build?.let { header("X-Larea-Build", it) } }
+                .build()
             socket = client.newWebSocket(request, Listener(outcome))
             when (val result = outcome.await()) {
                 CloseOutcome.Unauthorized -> {

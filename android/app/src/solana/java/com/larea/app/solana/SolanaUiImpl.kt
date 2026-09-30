@@ -19,5 +19,11 @@ class SolanaUiImpl @Inject constructor(
     override suspend fun beforeJoin(venueId: String, fix: Fix, step: (String) -> Unit): Result<Unit> = stamps.ensureStamp(venueId, fix, step)
 
     @Composable
+    override fun AuthorBadge(level: Int) = LevelBadge(level)
+
+    @Composable
+    override fun RoomSwitch(venueId: String, room: String, onRoom: (String) -> Unit) = RoomSwitchBar(venueId, room, onRoom)
+
+    @Composable
     override fun ProfileSection() = WalletSection()
 }

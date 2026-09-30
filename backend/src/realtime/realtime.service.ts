@@ -69,7 +69,8 @@ export class RealtimeService implements OnApplicationBootstrap, OnModuleDestroy 
     if (!user) return this.rejectUpgrade(socket, 401, 'Unauthorized');
     if (user.suspendedAt) return this.rejectUpgrade(socket, 403, 'Forbidden');
 
-    this.wss!.handleUpgrade(req, socket, head, (ws) => this.onConnection(ws, userId));
+    const build = typeof req.headers['x-larea-build'] === 'string' ? req.headers['x-larea-build'].slice(0, 32) : undefined;
+    this.wss!.handleUpgrade(req, socket, head, (ws) => this.onConnection(ws, userId, build));
   }
 
   private rejectUpgrade(socket: Duplex, status: number, text: string): void {
@@ -77,8 +78,8 @@ export class RealtimeService implements OnApplicationBootstrap, OnModuleDestroy 
     socket.destroy();
   }
 
-  private onConnection(socket: WebSocket, userId: string): void {
-    const conn: ClientConnection = { id: randomUUID(), userId, socket, venueIds: new Set(), alive: true };
+  private onConnection(socket: WebSocket, userId: string, build?: string): void {
+    const conn: ClientConnection = { id: randomUUID(), userId, build, socket, venueIds: new Set(), alive: true };
     this.registry.add(conn);
     socket.on('pong', () => (conn.alive = true));
     socket.on('message', (data) => void this.onMessage(conn, data.toString()));

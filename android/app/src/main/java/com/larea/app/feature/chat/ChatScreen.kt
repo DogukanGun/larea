@@ -80,6 +80,7 @@ import com.larea.app.core.media.PreparedImage
 import com.larea.app.core.network.ChatMessage
 import com.larea.app.core.network.ImageAttachment
 import com.larea.app.core.realtime.ConnectionState
+import com.larea.app.solana.LocalSolanaUi
 import com.larea.app.ui.components.Banner
 import com.larea.app.ui.components.BannerKind
 import com.larea.app.ui.components.EmptyState
@@ -166,6 +167,7 @@ fun ChatScreen(session: ChatSession, venueName: String, onLeft: () -> Unit, onBa
                 }
             },
         )
+        LocalSolanaUi.current.RoomSwitch(state.venueId, state.room, session::switchRoom)
         if (state.connection != ConnectionState.Connected) Banner(BannerKind.Info, "Reconnecting…")
         if (state.weakGps) Banner(BannerKind.Warning, "Weak GPS signal. We may not be able to confirm you're still here.")
         if (state.isMuted) Banner(BannerKind.Danger, "You can't send messages until ${Dates.short(state.mutedUntil)}.")

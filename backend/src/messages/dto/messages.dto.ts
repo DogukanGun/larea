@@ -9,6 +9,11 @@ export class SendMessageDto {
   @IsIn(['TEXT', 'IMAGE'])
   kind?: 'TEXT' | 'IMAGE';
 
+  @ApiPropertyOptional({ enum: ['MAIN', 'REGULARS'], default: 'MAIN', description: 'REGULARS: the place\'s room for level 2+ (Solana build)' })
+  @IsOptional()
+  @IsIn(['MAIN', 'REGULARS'])
+  room?: 'MAIN' | 'REGULARS';
+
   @ApiPropertyOptional({ maxLength: MAX_MESSAGE_LENGTH, example: 'Anyone want to get food?', description: 'Required for TEXT; optional caption for IMAGE' })
   @ValidateIf((o: SendMessageDto) => o.kind !== 'IMAGE' || o.text !== undefined)
   @IsString()
@@ -28,6 +33,11 @@ export class SendMessageDto {
 }
 
 export class HistoryQueryDto {
+  @ApiPropertyOptional({ enum: ['MAIN', 'REGULARS'], default: 'MAIN' })
+  @IsOptional()
+  @IsIn(['MAIN', 'REGULARS'])
+  room?: 'MAIN' | 'REGULARS';
+
   @ApiPropertyOptional({ description: 'Return messages newer than this message id (gap fill after reconnect)' })
   @IsOptional()
   @IsString()

@@ -93,7 +93,7 @@ object AppModule {
     @Provides
     @Singleton
     fun realtimeClient(@PlainClient client: OkHttpClient, store: SessionStore, refresher: TokenRefresher, json: Json): RealtimeClient =
-        RealtimeClient(client, Backend.wsUrl, store, refresher, json)
+        RealtimeClient(client, Backend.wsUrl, store, refresher, json, build = if (com.larea.app.BuildConfig.SOLANA) "solana" else null)
 
     @Provides
     @Singleton

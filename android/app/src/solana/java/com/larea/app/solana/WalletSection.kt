@@ -95,6 +95,23 @@ fun WalletSection(model: WalletViewModel = hiltViewModel()) {
         }
         state.error?.let { InlineError(it, Modifier.padding(horizontal = Spacing.screen, vertical = Spacing.s)) }
         SectionFooter("Stamps and level badges live in this wallet. Disconnecting keeps them there.")
+        if (state.levels.isNotEmpty()) {
+            SectionHeader("Your places")
+            GroupedCard(Modifier.testTag("solana.levels")) {
+                state.levels.forEachIndexed { i, level ->
+                    if (i > 0) RowDivider(inset = 16)
+                    ListRow {
+                        Column(Modifier.weight(1f)) {
+                            Text(level.venueName, style = LareaType.body, color = c.text, maxLines = 1)
+                            val next = level.nextLevelAt?.let { " · ${it - level.stamps} to ${Levels.name(level.level + 1)}" }.orEmpty()
+                            Text("${level.stamps} check-ins$next", style = LareaType.subheadline, color = c.secondaryText)
+                        }
+                        if (level.level >= Levels.REGULAR) LevelBadge(level.level) else Text(level.levelName, style = LareaType.subheadline, color = c.secondaryText)
+                    }
+                }
+            }
+            SectionFooter("Regulars get their own room at each place and can start polls.")
+        }
     }
     state.stamps?.let { stamps -> StampsDialog(stamps, onDismiss = model::closeStamps) }
 }

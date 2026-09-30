@@ -5,6 +5,8 @@ import { InjectEnv } from '../config/inject-env.js';
 import type { Env } from '../config/env.js';
 import { Prisma, type Stamp } from '../generated/prisma/client.js';
 import { PrismaService } from '../infra/prisma/prisma.service.js';
+import { LEGEND, levelName, REGULAR } from '../loyalty/levels.js';
+import { LoyaltyService, type LoyaltyView } from '../loyalty/loyalty.service.js';
 import { type LocationFix, PresenceService } from '../presence/presence.service.js';
 import { VenuesService } from '../venues/venues.service.js';
 import { SOLANA_CLIENT, type SolanaClient, SolanaUnavailableError, TransactionMismatchError } from './solana.client.js';
@@ -26,6 +28,8 @@ export interface StampView {
   error: string | null;
   createdAt: string;
   confirmedAt: string | null;
+  /** The loyalty level this visit reached, minted as a badge alongside the stamp. */
+  levelMinted: number | null;
   /** Until when this stamp opens the place's chat (confirmed stamps only). */
   unlocksUntil: string | null;
   /** Whether the DAS index shows the asset in the wallet; null when no DAS RPC is configured. */
@@ -46,6 +50,7 @@ export interface VenueStampStatus {
   checkedInToday: boolean;
   visits: number;
   pending: StampView | null;
+  loyalty: LoyaltyView;
 }
 
 /** Cuts a UTF-8 string to at most `max` bytes without splitting a character. */
@@ -78,6 +83,7 @@ export class StampsService {
     private readonly prisma: PrismaService,
     private readonly presence: PresenceService,
     private readonly venues: VenuesService,
+    private readonly loyalty: LoyaltyService,
     @Inject(SOLANA_CLIENT) private readonly solana: SolanaClient,
   ) {}
 
@@ -110,13 +116,19 @@ export class StampsService {
       data: { status: 'FAILED', error: 'replaced' },
     });
 
-    const visit = (await this.prisma.stamp.count({ where: { userId, venueId, status: 'CONFIRMED' } })) + 1;
+    const visit = (await this.loyalty.stamps(userId, venueId)) + 1;
     const id = randomUUID();
+    // Reaching Regular or above adds a level badge to the same transaction.
+    const reached = this.loyalty.levelFor(visit);
+    const levelMinted = reached > this.loyalty.levelFor(visit - 1) && reached >= REGULAR ? reached : null;
     const prepared = await this.chainCall(
       this.solana.buildStampMint({
         owner: wallet.address,
         name: truncateBytes(`${venue.name} · ${visit}`, NAME_MAX_BYTES),
         uri: `${this.metadataBase}/stamps/${id}.json`,
+        levelBadge: levelMinted
+          ? { name: truncateBytes(`${levelName(levelMinted)} · ${venue.name}`, NAME_MAX_BYTES), uri: `${this.metadataBase}/levels/${id}.json` }
+          : undefined,
       }),
     );
     const stamp = await this.prisma.stamp.create({
@@ -127,6 +139,7 @@ export class StampsService {
         wallet: wallet.address,
         day,
         visit,
+        levelMinted,
         messageHash: prepared.messageHash,
         expiresAt: new Date(now.getTime() + this.env.SOLANA_PENDING_TTL_SEC * 1000),
       },
@@ -190,11 +203,18 @@ export class StampsService {
       return this.view(stamp);
     }
     if (result.state === 'failed') return this.fail(stamp, result.error);
-    const [asset] = result.minted;
+    const [asset, badge] = result.minted;
     try {
       const updated = await this.prisma.stamp.update({
         where: { id: stamp.id },
-        data: { status: 'CONFIRMED', assetId: asset?.assetId ?? null, leafIndex: asset?.leafIndex ?? null, confirmedAt: now, error: null },
+        data: {
+          status: 'CONFIRMED',
+          assetId: asset?.assetId ?? null,
+          leafIndex: asset?.leafIndex ?? null,
+          levelAssetId: stamp.levelMinted ? (badge?.assetId ?? null) : null,
+          confirmedAt: now,
+          error: null,
+        },
         include: { venue: { select: { name: true } } },
       });
       this.logger.log({ stampId: stamp.id, assetId: asset?.assetId }, 'stamp confirmed');
@@ -240,6 +260,7 @@ export class StampsService {
   }
 
   async venueStatus(userId: string, venueId: string, now = new Date()): Promise<VenueStampStatus> {
+    const venue = await this.venues.getActive(venueId);
     const [latest, visits, pending] = await Promise.all([
       this.prisma.stamp.findFirst({ where: { userId, venueId, status: 'CONFIRMED' }, orderBy: { confirmedAt: 'desc' } }),
       this.prisma.stamp.count({ where: { userId, venueId, status: 'CONFIRMED' } }),
@@ -256,7 +277,35 @@ export class StampsService {
       checkedInToday: latest?.day === utcDay(now),
       visits,
       pending: pending ? this.view(pending) : null,
+      loyalty: this.loyalty.view(venue, visits),
     };
+  }
+
+  /** Public metadata for the level badge minted with a stamp. */
+  async levelMetadata(stampId: string): Promise<Record<string, unknown>> {
+    const stamp = await this.prisma.stamp.findUnique({ where: { id: stampId }, include: { venue: true } });
+    if (!stamp || stamp.status === 'FAILED' || !stamp.levelMinted) throw notFound();
+    const name = levelName(stamp.levelMinted);
+    return {
+      name: truncateBytes(`${name} · ${stamp.venue.name}`, NAME_MAX_BYTES),
+      symbol: 'LAREA',
+      description: `${name} at ${stamp.venue.name}: ${stamp.visit} check-ins, reached on ${stamp.day}. Non-transferable.`,
+      image: `${this.metadataBase}/levels/${stamp.id}.svg`,
+      external_url: this.env.PUBLIC_URL,
+      attributes: [
+        { trait_type: 'Place', value: stamp.venue.name },
+        { trait_type: 'Level', value: name },
+        { trait_type: 'Check-ins', value: stamp.visit },
+        { trait_type: 'Date', value: stamp.day },
+      ],
+      properties: { category: 'image', files: [{ uri: `${this.metadataBase}/levels/${stamp.id}.svg`, type: 'image/svg+xml' }] },
+    };
+  }
+
+  async levelImage(stampId: string): Promise<string> {
+    const stamp = await this.prisma.stamp.findUnique({ where: { id: stampId }, include: { venue: { select: { name: true } } } });
+    if (!stamp || stamp.status === 'FAILED' || !stamp.levelMinted) throw notFound();
+    return levelSvg(stamp.venue.name, Math.min(stamp.levelMinted, LEGEND));
   }
 
   /** Public metadata for a stamp's `uri`; only confirmed or pending stamps have any. */
@@ -322,6 +371,7 @@ export class StampsService {
       error: stamp.error,
       createdAt: stamp.createdAt.toISOString(),
       confirmedAt: stamp.confirmedAt?.toISOString() ?? null,
+      levelMinted: stamp.levelMinted,
       unlocksUntil: until?.toISOString() ?? null,
     };
   }
@@ -340,6 +390,21 @@ export function stampSvg(place: string, day: string, visit: number): string {
 <text x="256" y="262" font-family="Helvetica, Arial, sans-serif" font-size="34" font-weight="800" fill="#1C1B1F" text-anchor="middle">${name}</text>
 <text x="256" y="312" font-family="Helvetica, Arial, sans-serif" font-size="26" fill="#1C1B1F" text-anchor="middle">${escapeXml(day)}</text>
 <text x="256" y="362" font-family="Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#FF5A36" text-anchor="middle">VISIT ${visit}</text>
+</svg>`;
+}
+
+const LEVEL_COLORS = ['#8E8E93', '#8E8E93', '#FF5A36', '#7B61FF', '#E0A100'];
+
+/** A level badge: a shield with the level name. */
+export function levelSvg(place: string, level: number): string {
+  const name = escapeXml(place.length > 24 ? `${place.slice(0, 23)}…` : place);
+  const color = LEVEL_COLORS[level] ?? LEVEL_COLORS[0];
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<rect width="512" height="512" fill="#FFF7EC"/>
+<path d="M256 56 L424 120 V248 C424 352 352 424 256 460 C160 424 88 352 88 248 V120 Z" fill="${color}"/>
+<text x="256" y="200" font-family="Helvetica, Arial, sans-serif" font-size="28" font-weight="700" fill="#FFFFFF" text-anchor="middle" letter-spacing="6">LAREA</text>
+<text x="256" y="272" font-family="Helvetica, Arial, sans-serif" font-size="52" font-weight="800" fill="#FFFFFF" text-anchor="middle">${escapeXml(levelName(level).toUpperCase())}</text>
+<text x="256" y="330" font-family="Helvetica, Arial, sans-serif" font-size="26" fill="#FFFFFF" text-anchor="middle">${name}</text>
 </svg>`;
 }
 

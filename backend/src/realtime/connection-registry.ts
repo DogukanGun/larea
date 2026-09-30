@@ -4,6 +4,8 @@ import type { WebSocket } from 'ws';
 export interface ClientConnection {
   id: string;
   userId: string;
+  /** The app build from the upgrade's X-Larea-Build header ("solana" for the dApp Store build). */
+  build?: string;
   socket: WebSocket;
   venueIds: Set<string>;
   alive: boolean;

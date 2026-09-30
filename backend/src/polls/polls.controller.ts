@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Headers, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
@@ -23,8 +23,13 @@ export class PollsController {
   @HttpCode(200)
   @RateLimit({ limit: 1, windowSec: 5 }, { limit: 10, windowSec: 3600 })
   @ApiOperation({ summary: 'Start a poll in the chat (a message of kind POLL); question and options are moderated together' })
-  create(@CurrentUser() user: UserSnapshot, @Param('id') venueId: string, @Body() dto: CreatePollDto): Promise<SendResult> {
-    return this.polls.create(user, venueId, dto);
+  create(
+    @CurrentUser() user: UserSnapshot,
+    @Param('id') venueId: string,
+    @Body() dto: CreatePollDto,
+    @Headers('x-larea-build') build?: string,
+  ): Promise<SendResult> {
+    return this.polls.create(user, venueId, dto, build);
   }
 
   @Post('polls/:id/vote')

@@ -11,6 +11,7 @@ import { RateLimitGuard } from '../common/guards/rate-limit.guard.js';
 import type { UserSnapshot } from '../common/types.js';
 import { InjectEnv } from '../config/inject-env.js';
 import type { Env } from '../config/env.js';
+import { LoyaltyService, type LoyaltyView } from '../loyalty/loyalty.service.js';
 import { LocationFixDto } from '../venues/dto/location-fix.dto.js';
 import { SolanaEnabledGuard } from './solana-enabled.guard.js';
 import { type CheckinResult, collectionMetadata, StampsService, type StampView, stampSvg, type VenueStampStatus } from './stamps.service.js';
@@ -33,7 +34,10 @@ export class ConfirmStampDto {
 @Controller()
 @UseGuards(JwtAuthGuard, NotSuspendedGuard, AgeVerifiedGuard, SolanaEnabledGuard, RateLimitGuard)
 export class StampsController {
-  constructor(private readonly stamps: StampsService) {}
+  constructor(
+    private readonly stamps: StampsService,
+    private readonly loyalty: LoyaltyService,
+  ) {}
 
   @Post('venues/:id/checkin')
   @RateLimit({ limit: 10, windowSec: 60 })
@@ -61,6 +65,13 @@ export class StampsController {
   @ApiOperation({ summary: 'Report the signature of a check-in the wallet sent; returns the stamp state' })
   confirm(@CurrentUser() user: UserSnapshot, @Param('id', ParseUUIDPipe) id: string, @Body() dto: ConfirmStampDto): Promise<StampView> {
     return this.stamps.confirm(user.id, id, dto.signature);
+  }
+
+  @Get('solana/levels')
+  @RateLimit({ limit: 30, windowSec: 60 })
+  @ApiOperation({ summary: 'My loyalty level at every place I have checked in' })
+  async levels(@CurrentUser() user: UserSnapshot): Promise<{ levels: LoyaltyView[]; thresholds: readonly number[] }> {
+    return { levels: await this.loyalty.mine(user.id), thresholds: this.loyalty.thresholds };
   }
 
   @Get('solana/stamps')
@@ -97,6 +108,19 @@ export class MetadataController {
   @Header('Cache-Control', 'public, max-age=86400')
   stampImage(@Param('id', ParseUUIDPipe) id: string): Promise<string> {
     return this.stamps.image(id);
+  }
+
+  @Get('levels/:id.json')
+  @Header('Cache-Control', 'public, max-age=300')
+  level(@Param('id', ParseUUIDPipe) id: string): Promise<Record<string, unknown>> {
+    return this.stamps.levelMetadata(id);
+  }
+
+  @Get('levels/:id.svg')
+  @Header('Content-Type', 'image/svg+xml')
+  @Header('Cache-Control', 'public, max-age=86400')
+  levelImage(@Param('id', ParseUUIDPipe) id: string): Promise<string> {
+    return this.stamps.levelImage(id);
   }
 
   @Get(':kind.json')

@@ -3,9 +3,11 @@ import { BlocksService } from '../blocks/blocks.service.js';
 import { badRequest, forbidden, notFound, unavailable } from '../common/errors.js';
 import type { UserSnapshot } from '../common/types.js';
 import { EnforcementService } from '../enforcement/enforcement.service.js';
-import type { Message, MessageStatus } from '../generated/prisma/client.js';
+import type { ChatRoom, Message, MessageStatus } from '../generated/prisma/client.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../infra/prisma/prisma.service.js';
+import { REGULAR } from '../loyalty/levels.js';
+import { LoyaltyService } from '../loyalty/loyalty.service.js';
 import { MEDIA_SUMMARY_SELECT, MediaService, type MediaSummary } from '../media/media.service.js';
 import { ModerationService } from '../moderation/moderation.service.js';
 import { type ModerationDecision, ModerationUnavailableError } from '../moderation/moderation.types.js';
@@ -39,6 +41,7 @@ export const MESSAGE_INCLUDE = {
 
 export interface SendInput {
   kind?: 'TEXT' | 'IMAGE';
+  room?: ChatRoom;
   text?: string;
   mediaId?: string;
   clientKey: string;
@@ -57,6 +60,7 @@ export class MessagesService {
     private readonly blocks: BlocksService,
     private readonly media: MediaService,
     private readonly bus: RealtimeBus,
+    private readonly loyalty: LoyaltyService,
   ) {}
 
   toView(m: MessageRow): ChatMessageView {
@@ -69,6 +73,8 @@ export class MessagesService {
       status: m.status === 'CENSORED' ? 'CENSORED' : 'APPROVED',
       createdAt: m.createdAt.toISOString(),
     };
+    if (m.room === 'REGULARS') view.room = 'REGULARS';
+    if (m.authorLevel > 0) view.authorLevel = m.authorLevel;
     if (m.kind === 'IMAGE') {
       view.caption = m.text === IMAGE_FALLBACK_TEXT ? '' : m.text;
       const image = this.media.toView(m.media);
@@ -101,9 +107,12 @@ export class MessagesService {
     if (isImage && text.length > MAX_CAPTION_LENGTH) throw badRequest('VALIDATION', `Captions can be at most ${MAX_CAPTION_LENGTH} characters.`);
     if (isImage && !input.mediaId) throw badRequest('VALIDATION', 'Photo messages need a mediaId.');
     await this.assertCanPost(user, venueId);
+    const room = input.room ?? 'MAIN';
+    const authorLevel = await this.loyalty.level(user.id, venueId);
+    if (room === 'REGULARS') this.assertRegular(authorLevel);
 
     const venue = await this.venues.getActive(venueId);
-    const recent = await this.recentContext(venueId);
+    const recent = await this.recentContext(venueId, room);
     const media = isImage ? await this.media.findUploaded(input.mediaId!, user.id) : null;
 
     let decision: ModerationDecision;
@@ -140,6 +149,8 @@ export class MessagesService {
           authorId: user.id,
           kind: media ? 'IMAGE' : 'TEXT',
           mediaId: media?.id ?? null,
+          room,
+          authorLevel,
           text: media ? shownText || IMAGE_FALLBACK_TEXT : shownText,
           originalText: status === 'CENSORED' ? text : status === 'BLOCKED' ? text : null,
           status,
@@ -180,10 +191,17 @@ export class MessagesService {
     }
   }
 
-  /** The last few visible messages, oldest first, as classifier context. */
-  async recentContext(venueId: string): Promise<{ displayName: string; text: string }[]> {
+  /** Only Regulars (level 2+) read and write in a place's Regulars room. */
+  assertRegular(level: number): void {
+    if (level < REGULAR) {
+      throw forbidden('LEVEL_REQUIRED', `The Regulars room opens after ${this.loyalty.thresholds[0]} check-ins here.`, { requiredLevel: REGULAR });
+    }
+  }
+
+  /** The last few visible messages in the room, oldest first, as classifier context. */
+  async recentContext(venueId: string, room: ChatRoom = 'MAIN'): Promise<{ displayName: string; text: string }[]> {
     const rows = await this.prisma.message.findMany({
-      where: { venueId, status: { in: ['APPROVED', 'CENSORED'] } },
+      where: { venueId, room, status: { in: ['APPROVED', 'CENSORED'] } },
       orderBy: { createdAt: 'desc' },
       take: 5,
       include: { author: { select: { displayName: true } } },
@@ -191,10 +209,11 @@ export class MessagesService {
     return rows.reverse().map((m) => ({ displayName: m.author.displayName, text: m.text }));
   }
 
-  /** Fans a visible message out to the room, skipping blocked pairs. */
+  /** Fans a visible message out to the room, skipping blocked pairs; Regulars messages reach only Regulars on the Solana build. */
   async publish(authorId: string, message: MessageRow): Promise<void> {
     const excluded = await this.blocks.blockset(authorId);
-    this.bus.toVenue(message.venueId, { type: 'message', message: this.toView(message) }, excluded);
+    const audience = message.room === 'REGULARS' ? { userIds: await this.loyalty.regularsAt(message.venueId), build: 'solana' } : undefined;
+    this.bus.toVenue(message.venueId, { type: 'message', message: this.toView(message) }, excluded, audience);
   }
 
   toSendResult(message: MessageRow, decision?: ModerationDecision): SendResult {
@@ -216,8 +235,10 @@ export class MessagesService {
   }
 
   /** Visible history for a member, oldest first, excluding blocked relationships. */
-  async history(userId: string, venueId: string, query: { afterId?: string; limit?: number }): Promise<ChatMessageView[]> {
+  async history(userId: string, venueId: string, query: { afterId?: string; limit?: number; room?: ChatRoom }): Promise<ChatMessageView[]> {
     if (!(await this.presence.findActive(userId, venueId))) throw forbidden('NOT_MEMBER', 'Join the chat to see messages.');
+    const room = query.room ?? 'MAIN';
+    if (room === 'REGULARS') this.assertRegular(await this.loyalty.level(userId, venueId));
     const limit = query.limit ?? 50;
     const excluded = await this.blocks.blockset(userId);
     const visible: MessageStatus[] = ['APPROVED', 'CENSORED'];
@@ -226,7 +247,7 @@ export class MessagesService {
       const anchor = await this.prisma.message.findUnique({ where: { id: query.afterId }, select: { createdAt: true, venueId: true } });
       if (!anchor || anchor.venueId !== venueId) throw notFound('Unknown message.');
       const rows = await this.prisma.message.findMany({
-        where: { venueId, status: { in: visible }, authorId: { notIn: excluded }, createdAt: { gt: anchor.createdAt } },
+        where: { venueId, room, status: { in: visible }, authorId: { notIn: excluded }, createdAt: { gt: anchor.createdAt } },
         orderBy: { createdAt: 'asc' },
         take: limit,
         include: MESSAGE_INCLUDE,
@@ -234,7 +255,7 @@ export class MessagesService {
       return this.withMyVotes(rows.map((m) => this.toView(m)), userId);
     }
     const rows = await this.prisma.message.findMany({
-      where: { venueId, status: { in: visible }, authorId: { notIn: excluded } },
+      where: { venueId, room, status: { in: visible }, authorId: { notIn: excluded } },
       orderBy: { createdAt: 'desc' },
       take: limit,
       include: MESSAGE_INCLUDE,

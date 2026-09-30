@@ -6,9 +6,16 @@ import type { ServerEvent } from './protocol.js';
 
 const CHANNEL = 'rt:events';
 
+/** Narrows a venue fan-out to some people on one app build (the Regulars room). */
+export interface Audience {
+  userIds: string[];
+  build: string;
+}
+
 interface Envelope {
   target: { venueId?: string; userId?: string };
   excludeUserIds?: string[];
+  audience?: Audience;
   event?: ServerEvent;
   close?: { code: number; reason: string };
 }
@@ -43,8 +50,8 @@ export class RealtimeBus implements OnModuleInit, OnModuleDestroy {
     await this.subscriber?.unsubscribe(CHANNEL).catch(() => undefined);
   }
 
-  toVenue(venueId: string, event: ServerEvent, excludeUserIds: string[] = []): void {
-    this.publish({ target: { venueId }, excludeUserIds, event });
+  toVenue(venueId: string, event: ServerEvent, excludeUserIds: string[] = [], audience?: Audience): void {
+    this.publish({ target: { venueId }, excludeUserIds, audience, event });
   }
 
   toUser(userId: string, event: ServerEvent): void {
@@ -62,6 +69,7 @@ export class RealtimeBus implements OnModuleInit, OnModuleDestroy {
   /** Delivers an envelope to sockets held by this instance. */
   deliver(envelope: Envelope): void {
     const excluded = new Set(envelope.excludeUserIds ?? []);
+    const audience = envelope.audience ? { userIds: new Set(envelope.audience.userIds), build: envelope.audience.build } : null;
     const conns = envelope.target.venueId
       ? this.registry.forVenue(envelope.target.venueId)
       : envelope.target.userId
@@ -70,6 +78,7 @@ export class RealtimeBus implements OnModuleInit, OnModuleDestroy {
     const payload = envelope.event ? JSON.stringify(envelope.event) : null;
     for (const conn of conns) {
       if (excluded.has(conn.userId)) continue;
+      if (audience && (conn.build !== audience.build || !audience.userIds.has(conn.userId))) continue;
       if (envelope.close) {
         conn.socket.close(envelope.close.code, envelope.close.reason);
         continue;

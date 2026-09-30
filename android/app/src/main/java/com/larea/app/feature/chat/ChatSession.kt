@@ -59,9 +59,15 @@ data class ChatState(
     /** The chat ended (left, replaced by another device). */
     val left: Boolean = false,
     val loading: Boolean = true,
+    /** MAIN_ROOM, or REGULARS_ROOM in the Solana build. */
+    val room: String = MAIN_ROOM,
 ) {
     val isMuted: Boolean get() = Dates.isFuture(mutedUntil)
 }
+
+const val MAIN_ROOM = "MAIN"
+const val REGULARS_ROOM = "REGULARS"
+
 
 /**
  * One venue chat: history, realtime events, heartbeats and sending (the iOS `ChatViewModel`).
@@ -123,7 +129,7 @@ class ChatSession(
         runCatching { ack.data?.get("timing")?.jsonObject?.get("heartbeatIntervalSec")?.jsonPrimitive?.intOrNull }.getOrNull()?.let { heartbeatIntervalSec = it }
         sendHeartbeat()
         val lastId = _state.value.messages.lastOrNull()?.id ?: return
-        apiCall { api.history(venueId, afterId = lastId) }.onSuccess { gap -> gap.messages.forEach(::add) }
+        apiCall { api.history(venueId, afterId = lastId, room = roomParam()) }.onSuccess { gap -> gap.messages.forEach(::add) }
     }
 
     private suspend fun sendHeartbeat() {
@@ -154,11 +160,27 @@ class ChatSession(
 
     // Messages
 
+    /** The server's room parameter: omitted for the main chat, so older servers see the same requests. */
+    private fun roomParam(): String? = _state.value.room.takeIf { it != MAIN_ROOM }
+
+    /** Shows another room of this place (the Solana build's Regulars room). */
+    fun switchRoom(room: String) {
+        if (room == _state.value.room) return
+        _state.update { it.copy(room = room, messages = emptyList(), loading = true) }
+        launch { loadHistory() }
+    }
+
     private suspend fun loadHistory() {
-        apiCall { api.history(venueId) }
-            .onSuccess { history -> _state.update { it.copy(messages = history.messages, loading = false) } }
+        val room = _state.value.room
+        apiCall { api.history(venueId, room = roomParam()) }
+            .onSuccess { history -> _state.update { if (it.room == room) it.copy(messages = history.messages, loading = false) else it } }
             .onFailure { e ->
                 _state.update { it.copy(loading = false) }
+                if (e.apiCode == "LEVEL_REQUIRED") {
+                    _state.update { it.copy(room = MAIN_ROOM, notice = e.userMessage()) }
+                    loadHistory()
+                    return
+                }
                 if (e.apiCode == "NOT_MEMBER") rejoin() else _state.update { it.copy(notice = e.userMessage()) }
             }
     }
@@ -190,7 +212,7 @@ class ChatSession(
 
     private fun add(message: ChatMessage) {
         _state.update { s ->
-            if (s.messages.any { it.id == message.id }) s else s.copy(messages = (s.messages + message).sortedBy { it.createdAt })
+            if ((message.room ?: MAIN_ROOM) != s.room || s.messages.any { it.id == message.id }) s else s.copy(messages = (s.messages + message).sortedBy { it.createdAt })
         }
     }
 
@@ -200,7 +222,7 @@ class ChatSession(
         val item = PendingMessage(UUID.randomUUID().toString(), trimmed)
         _state.update { it.copy(pending = it.pending + item) }
         launch {
-            apiCall { api.send(venueId, SendMessageRequest.text(trimmed, item.id)) }
+            apiCall { api.send(venueId, SendMessageRequest.text(trimmed, item.id, roomParam())) }
                 .onSuccess { apply(it, "This message doesn't meet our community guidelines.") }
                 .onFailure { handleSendError(it) }
             removePending(item.id)
@@ -216,7 +238,7 @@ class ChatSession(
             uploader.upload(image)
                 .onSuccess { media ->
                     _state.update { s -> s.copy(pending = s.pending.map { if (it.id == item.id) it.copy(uploading = false) else it }) }
-                    apiCall { api.send(venueId, SendMessageRequest.image(media.id ?: "", trimmed, item.id)) }
+                    apiCall { api.send(venueId, SendMessageRequest.image(media.id ?: "", trimmed, item.id, roomParam())) }
                         .onSuccess { apply(it, "This photo doesn't meet our community guidelines.") }
                         .onFailure { handleSendError(it) }
                 }

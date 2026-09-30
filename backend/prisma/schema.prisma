@@ -42,6 +42,12 @@ enum MessageKind {
   POLL
 }
 
+/// Every place has its main chat; the Solana build adds a room for its Regulars (level 2+).
+enum ChatRoom {
+  MAIN
+  REGULARS
+}
+
 enum MediaStatus {
   UPLOADED
   ATTACHED
@@ -170,16 +176,16 @@ model User {
   blocksMade           Block[]               @relation("Blocker")
   blocksReceived       Block[]               @relation("Blocked")
   incidents            Incident[]
-  media            Media[]
-  polls            Poll[]
-  pollVotes        PollVote[]
-  listings         Listing[]
-  offers           Offer[]
-  ordersAsPayer    Order[]               @relation("OrderPayer")
-  ordersAsPayee    Order[]               @relation("OrderPayee")
-  stripeAccount    StripeAccount?
-  wallet           Wallet?
-  stamps           Stamp[]
+  media                Media[]
+  polls                Poll[]
+  pollVotes            PollVote[]
+  listings             Listing[]
+  offers               Offer[]
+  ordersAsPayer        Order[]               @relation("OrderPayer")
+  ordersAsPayee        Order[]               @relation("OrderPayee")
+  stripeAccount        StripeAccount?
+  wallet               Wallet?
+  stamps               Stamp[]
 }
 
 model RefreshToken {
@@ -231,10 +237,10 @@ model Venue {
 
   memberships Membership[]
   messages    Message[]
+  stamps      Stamp[]
 
   @@unique([source, sourceRef])
   @@index([lat, lng])
-  stamps      Stamp[]
 }
 
 model Membership {
@@ -269,16 +275,20 @@ model Message {
   clientKey        String
   kind             MessageKind   @default(TEXT)
   mediaId          String?       @unique
+  room             ChatRoom      @default(MAIN)
+  /// The author's loyalty level at this place when they wrote it (0 = none).
+  authorLevel      Int           @default(0)
   createdAt        DateTime      @default(now())
 
-  venue   Venue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
-  author  User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  media   Media? @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  venue   Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  author  User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  media   Media?   @relation(fields: [mediaId], references: [id], onDelete: SetNull)
   poll    Poll?
   reports Report[]
 
   @@unique([authorId, clientKey])
   @@index([venueId, createdAt])
+  @@index([venueId, room, createdAt])
 }
 
 /// A poll lives in the chat as a message of kind POLL and disappears with it.
@@ -592,26 +602,27 @@ enum StampStatus {
 /// A check-in: a soulbound compressed NFT minted to the user's wallet at a place (dApp Store build).
 /// PENDING until the transaction lands; at most one CONFIRMED stamp per user, place and day.
 model Stamp {
-  id          String      @id @default(uuid())
-  userId      String
-  venueId     String
-  wallet      String
+  id           String      @id @default(uuid())
+  userId       String
+  venueId      String
+  wallet       String
   /// UTC date of the visit, YYYY-MM-DD.
-  day         String
+  day          String
   /// Which visit this is at the place (1 = first).
-  visit       Int
-  status      StampStatus @default(PENDING)
+  visit        Int
+  status       StampStatus @default(PENDING)
   /// sha256 of the transaction message we built; a submitted transaction must match it.
-  messageHash String
-  signature   String?     @unique
-  assetId     String?     @unique
-  leafIndex   Int?
-  /// Loyalty level badge minted in the same transaction (S3), if this visit reached one.
-  levelMinted Int?
-  error       String?
-  createdAt   DateTime    @default(now())
-  expiresAt   DateTime
-  confirmedAt DateTime?
+  messageHash  String
+  signature    String?     @unique
+  assetId      String?     @unique
+  leafIndex    Int?
+  /// Loyalty level badge minted in the same transaction, if this visit reached one.
+  levelMinted  Int?
+  levelAssetId String?     @unique
+  error        String?
+  createdAt    DateTime    @default(now())
+  expiresAt    DateTime
+  confirmedAt  DateTime?
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)

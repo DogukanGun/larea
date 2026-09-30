@@ -22,6 +22,14 @@ interface SolanaUi {
      */
     suspend fun beforeJoin(venueId: String, fix: Fix, step: (String) -> Unit): Result<Unit> = Result.success(Unit)
 
+    /** A loyalty badge next to an author's name in chat (level 1 Visitor … 4 Legend). */
+    @Composable
+    fun AuthorBadge(level: Int) {}
+
+    /** Under the chat's top bar: switch between the main chat and the place's Regulars room. */
+    @Composable
+    fun RoomSwitch(venueId: String, room: String, onRoom: (String) -> Unit) {}
+
     /** Wallet, stamps and levels on the Profile tab. */
     @Composable
     fun ProfileSection() {}

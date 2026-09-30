@@ -45,6 +45,7 @@ import com.larea.app.core.network.ChatMessage
 import com.larea.app.core.network.ImageAttachment
 import com.larea.app.core.network.MessageKind
 import com.larea.app.core.network.PollView
+import com.larea.app.solana.LocalSolanaUi
 import com.larea.app.ui.components.Avatar
 import com.larea.app.ui.components.AvatarPalette
 import com.larea.app.ui.components.Pill
@@ -124,12 +125,14 @@ fun MessageRow(
         }
         Column(horizontalAlignment = if (mine) Alignment.End else Alignment.Start, verticalArrangement = Arrangement.spacedBy(3.dp)) {
             if (showHeader) {
-                Text(
-                    message.author.displayName,
-                    style = LareaType.caption.copy(fontWeight = FontWeight.SemiBold),
-                    color = AvatarPalette.colors[AvatarPalette.colorIndex(message.author.id)],
-                    modifier = Modifier.padding(start = 6.dp),
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(start = 6.dp)) {
+                    Text(
+                        message.author.displayName,
+                        style = LareaType.caption.copy(fontWeight = FontWeight.SemiBold),
+                        color = AvatarPalette.colors[AvatarPalette.colorIndex(message.author.id)],
+                    )
+                    LocalSolanaUi.current.AuthorBadge(message.authorLevel)
+                }
             }
             val press = Modifier.combinedClickable(onClick = {}, onLongClick = onLongPress, onLongClickLabel = "More actions")
             val image = message.image
@@ -264,8 +267,9 @@ fun PollRow(message: ChatMessage, poll: PollView, mine: Boolean, onVote: (String
                     if (mine) "Your poll" else message.author.displayName,
                     style = LareaType.caption.copy(fontWeight = FontWeight.SemiBold),
                     color = if (mine) c.brandPrimary else AvatarPalette.colors[AvatarPalette.colorIndex(message.author.id)],
-                    modifier = Modifier.weight(1f),
                 )
+                if (!mine) LocalSolanaUi.current.AuthorBadge(message.authorLevel)
+                Spacer(Modifier.weight(1f))
                 if (closed) Pill("Closed", style = PillStyle.Neutral)
             }
             Text(poll.question, style = LareaType.headline, color = c.text)

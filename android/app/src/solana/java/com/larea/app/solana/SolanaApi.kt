@@ -44,6 +44,8 @@ data class StampView(
     val assetId: String? = null,
     val error: String? = null,
     val confirmedAt: String? = null,
+    /** The level badge minted with this stamp, if the visit reached one. */
+    val levelMinted: Int? = null,
     val unlocksUntil: String? = null,
     /** Whether the DAS index shows it in the wallet; null when the server has no DAS RPC. */
     val onChain: Boolean? = null,
@@ -53,12 +55,27 @@ data class StampView(
 data class CheckinResult(val stamp: StampView, val transaction: String, val cluster: String = "devnet")
 
 @Serializable
+data class LoyaltyView(
+    val venueId: String,
+    val venueName: String = "",
+    val stamps: Int = 0,
+    val level: Int = 0,
+    val levelName: String = "None",
+    /** Stamps needed for the next level; null at Legend. */
+    val nextLevelAt: Int? = null,
+)
+
+@Serializable
+data class LevelsResponse(val levels: List<LoyaltyView> = emptyList(), val thresholds: List<Int> = listOf(5, 15, 40))
+
+@Serializable
 data class VenueStampStatus(
     val unlocked: Boolean = false,
     val unlocksUntil: String? = null,
     val checkedInToday: Boolean = false,
     val visits: Int = 0,
     val pending: StampView? = null,
+    val loyalty: LoyaltyView? = null,
 )
 
 @Serializable
@@ -78,4 +95,5 @@ interface SolanaApi {
     @POST("venues/{id}/checkin") suspend fun checkin(@Path("id") venueId: String, @Body fix: LocationFixBody): CheckinResult
     @POST("solana/stamps/{id}/submit") suspend fun submitStamp(@Path("id") stampId: String, @Body body: SubmitStampRequest): StampView
     @GET("solana/stamps") suspend fun stamps(): StampsResponse
+    @GET("solana/levels") suspend fun levels(): LevelsResponse
 }

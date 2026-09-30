@@ -2,8 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { BlocksService } from '../blocks/blocks.service.js';
 import { badRequest, conflict, forbidden, notFound, unavailable } from '../common/errors.js';
 import type { UserSnapshot } from '../common/types.js';
+import { InjectEnv } from '../config/inject-env.js';
+import type { Env } from '../config/env.js';
 import { EnforcementService } from '../enforcement/enforcement.service.js';
 import { PrismaService } from '../infra/prisma/prisma.service.js';
+import { levelName, REGULAR } from '../loyalty/levels.js';
+import { LoyaltyService } from '../loyalty/loyalty.service.js';
 import { RedisService } from '../infra/redis/redis.service.js';
 import { MESSAGE_INCLUDE, MessagesService, type SendResult } from '../messages/messages.service.js';
 import { ModerationService } from '../moderation/moderation.service.js';
@@ -27,6 +31,7 @@ export class PollsService {
   private readonly timers = new Map<string, NodeJS.Timeout>();
 
   constructor(
+    @InjectEnv() private readonly env: Env,
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly messages: MessagesService,
@@ -36,10 +41,11 @@ export class PollsService {
     private readonly enforcement: EnforcementService,
     private readonly blocks: BlocksService,
     private readonly bus: RealtimeBus,
+    private readonly loyalty: LoyaltyService,
   ) {}
 
   /** Creates the poll and its message in one go, after moderating question and options as one text. */
-  async create(user: UserSnapshot, venueId: string, dto: CreatePollDto): Promise<SendResult> {
+  async create(user: UserSnapshot, venueId: string, dto: CreatePollDto, build?: string): Promise<SendResult> {
     const existing = await this.prisma.message.findUnique({
       where: { authorId_clientKey: { authorId: user.id, clientKey: dto.clientKey } },
       include: MESSAGE_INCLUDE,
@@ -52,6 +58,11 @@ export class PollsService {
     if (options.length < 2) throw badRequest('VALIDATION', 'A poll needs at least two options.');
     if (new Set(options.map((o) => o.toLowerCase())).size !== options.length) throw badRequest('VALIDATION', 'Options must be different from each other.');
     await this.messages.assertCanPost(user, venueId);
+    const authorLevel = await this.loyalty.level(user.id, venueId);
+    // In the Solana build, starting polls is a Regulars' perk.
+    if (build === 'solana' && this.env.SOLANA_ENABLED && authorLevel < REGULAR) {
+      throw forbidden('LEVEL_REQUIRED', `Polls open up once you're a ${levelName(REGULAR)} here (${this.loyalty.thresholds[0]} check-ins).`, { requiredLevel: REGULAR });
+    }
     const venue = await this.venues.getActive(venueId);
 
     const open = await this.prisma.poll.count({ where: { authorId: user.id, venueId, closed: false, OR: [{ closesAt: null }, { closesAt: { gt: new Date() } }], message: { status: { in: ['APPROVED', 'CENSORED'] } } } });
@@ -73,6 +84,7 @@ export class PollsService {
           venueId,
           authorId: user.id,
           kind: 'POLL',
+          authorLevel,
           text: pollFallbackText(question),
           originalText: [question, ...options].join('\n'),
           status: 'BLOCKED',
@@ -93,6 +105,7 @@ export class PollsService {
           venueId,
           authorId: user.id,
           kind: 'POLL',
+          authorLevel,
           text: pollFallbackText(question),
           status: 'APPROVED',
           severity: decision.severity,

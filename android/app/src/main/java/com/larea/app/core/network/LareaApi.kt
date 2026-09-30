@@ -42,7 +42,12 @@ interface LareaApi {
     @GET("venues/{id}/members") suspend fun members(@Path("id") venueId: String): MembersResponse
 
     @GET("venues/{id}/messages")
-    suspend fun history(@Path("id") venueId: String, @Query("afterId") afterId: String? = null, @Query("limit") limit: Int? = null): HistoryResponse
+    suspend fun history(
+        @Path("id") venueId: String,
+        @Query("afterId") afterId: String? = null,
+        @Query("limit") limit: Int? = null,
+        @Query("room") room: String? = null,
+    ): HistoryResponse
 
     @POST("venues/{id}/messages") suspend fun send(@Path("id") venueId: String, @Body body: SendMessageRequest): SendResult
 

@@ -83,9 +83,9 @@ export interface WsClient {
   close: () => Promise<void>;
 }
 
-export function connectWs(ctx: TestContext, user: { accessToken: string }): Promise<WsClient> {
+export function connectWs(ctx: TestContext, user: { accessToken: string }, headers: Record<string, string> = {}): Promise<WsClient> {
   return new Promise((resolve, reject) => {
-    const socket = new WebSocket(`${ctx.baseUrl.replace('http', 'ws')}/ws`, { headers: auth(user) });
+    const socket = new WebSocket(`${ctx.baseUrl.replace('http', 'ws')}/ws`, { headers: { ...auth(user), ...headers } });
     const buffer: { type: string }[] = [];
     const waiters: { predicate: (e: { type: string }) => boolean; resolve: (e: { type: string }) => void }[] = [];
     socket.on('message', (data) => {

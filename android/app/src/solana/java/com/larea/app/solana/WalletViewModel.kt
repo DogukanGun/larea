@@ -24,6 +24,8 @@ data class WalletUiState(
     val stamps: List<StampView>? = null,
     val stampsDasChecked: Boolean = false,
     val stampsLoading: Boolean = false,
+    /** Loyalty per place, highest first. */
+    val levels: List<LoyaltyView> = emptyList(),
 )
 
 @HiltViewModel
@@ -43,6 +45,7 @@ class WalletViewModel @Inject constructor(
                     _state.update { it.copy(wallet = r.wallet, balances = r.balances, loading = false, error = null) }
                 }
                 .onFailure { e -> _state.update { it.copy(loading = false, error = e.userMessage()) } }
+            apiCall { api.levels() }.onSuccess { r -> _state.update { it.copy(levels = r.levels) } }
         }
     }
 

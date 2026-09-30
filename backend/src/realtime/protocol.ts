@@ -66,6 +66,10 @@ export interface ChatMessageView {
   caption?: string;
   image?: ChatImageView;
   poll?: ChatPollView;
+  /** Only on messages in a place's Regulars room (Solana build); absent = the main chat. */
+  room?: 'REGULARS';
+  /** The author's loyalty level at this place (1 Visitor … 4 Legend); absent when none. */
+  authorLevel?: number;
   status: 'APPROVED' | 'CENSORED';
   createdAt: string;
 }

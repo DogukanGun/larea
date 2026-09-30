@@ -20,11 +20,12 @@ describe('check-in stamps', () => {
     ctx = await createTestApp();
     fake = ctx.app.get(SOLANA_CLIENT);
     // A place of our own far from the shared fixtures, so other suites' memberships don't matter.
-    venue = await ctx.prisma.venue.create({ data: { slug: `stamp-${randomUUID().slice(0, 8)}`, name: 'Stamp Café', category: 'cafe', lat: 48.1371, lng: 11.5754 } });
+    venue = await ctx.prisma.venue.create({ data: { slug: `stamp-${randomUUID().slice(0, 8)}`, name: 'Stamp Café', category: 'cafe', lat: -60 - Math.random() * 5, lng: -150 + Math.random() * 60 } });
     fix = { lat: venue.lat, lng: venue.lng, accuracy: 10 };
   });
 
   afterAll(async () => {
+    await ctx?.prisma.venue.deleteMany({ where: { id: venue?.id } });
     await ctx?.close();
   });
 

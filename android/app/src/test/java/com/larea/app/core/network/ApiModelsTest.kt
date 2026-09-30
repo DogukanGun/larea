@@ -102,4 +102,19 @@ class ApiModelsTest {
         val update = poll.copy(myOptionId = null, totalVotes = 4)
         assertEquals("o1", poll.merging(update).myOptionId)
     }
+
+    @Test
+    fun `decodes loyalty level and room, and sends the room only when set`() {
+        val message = decode<ChatMessage>("""{"id":"m1","venueId":"v1","author":{"id":"u1","displayName":"anna"},"kind":"TEXT","text":"hi","status":"APPROVED","createdAt":"x","room":"REGULARS","authorLevel":3}""")
+        assertEquals(3, message.authorLevel)
+        assertEquals("REGULARS", message.room)
+        val plain = decode<ChatMessage>("""{"id":"m2","venueId":"v1","author":{"id":"u1","displayName":"anna"},"text":"hi","createdAt":"x"}""")
+        assertEquals(0, plain.authorLevel)
+        assertNull(plain.room)
+
+        val main = LareaJson.encodeToString(SendMessageRequest.serializer(), SendMessageRequest.text("hi", "k1234567"))
+        assertFalse(main.contains("room"))
+        val regulars = LareaJson.encodeToString(SendMessageRequest.serializer(), SendMessageRequest.text("hi", "k1234567", "REGULARS"))
+        assertTrue(regulars.contains("\"room\":\"REGULARS\""))
+    }
 }
