@@ -30,10 +30,11 @@ Moderator account for the admin endpoints: `SEED_MODERATOR_EMAIL=... SEED_MODERA
 | `pnpm typecheck` / `pnpm lint` | tsc and oxlint |
 | `pnpm openapi` | builds and writes `../docs/api/openapi.json` |
 | `pnpm build` / `pnpm start:prod` | production build and start |
+| `pnpm solana:validator` / `pnpm solana:setup` / `pnpm solana:faucet` / `pnpm solana:smoke` | local validator, Solana keys/collections/tree/test mints, test funds, a real on-chain round trip (after `pnpm build`; see `../docs/solana.md`) |
 
 ## Layout
 
-`src/` is one module per concern: `auth`, `users`, `verification` (platform age signals), `venues`, `media` (photo uploads, sharp pipeline, quarantine), `polls`, `market` (listings, offers, orders, Stripe Connect and webhooks), `presence` (join, heartbeat, sweep), `realtime` (WebSocket endpoint and Redis bus), `messages`, `moderation` (OpenAI classifier, rules, strike policy), `enforcement`, `blocks`, `reports`, `admin`, `retention`, `health`. `common/` holds guards, error shape and validation; `infra/` holds Prisma, Redis and logging. `testing/` holds the fake classifier, the fake Overpass client and the `POST /testing/verify-age` shortcut; it is only loaded when `NODE_ENV=test`.
+`src/` is one module per concern: `auth`, `users`, `verification` (platform age signals), `venues`, `media` (photo uploads, sharp pipeline, quarantine), `polls`, `market` (listings, offers, orders, Stripe Connect and webhooks, the USDC rail), `solana` (wallet linking, check-in stamps, tips, perks, SKR rewards, NFT metadata), `loyalty` (levels from stamps), `presence` (join, heartbeat, sweep), `realtime` (WebSocket endpoint and Redis bus), `messages`, `moderation` (OpenAI classifier, rules, strike policy), `enforcement`, `blocks`, `reports`, `admin`, `retention`, `health`. `common/` holds guards, error shape and validation; `infra/` holds Prisma, Redis and logging. `testing/` holds the fake classifier, the fake Overpass, Stripe and Solana clients and the `POST /testing/verify-age` shortcut; it is only loaded when `NODE_ENV=test`.
 
 The realtime protocol is documented in `../docs/realtime-protocol.md`.
 
@@ -44,6 +45,10 @@ The apps ask the operating system for the user's age range (Apple Declared Age R
 ## Moderation
 
 Every message and display name goes through OpenAI twice: the free `omni-moderation-latest` endpoint is a hard floor (threats, sexual content involving minors, self-harm, graphic violence block immediately), then `OPENAI_MODEL` (default `gpt-5-nano`) returns a structured verdict (allow / warn / censor / block, severity 0-3, categories, censored text) following the policy in `src/moderation/prompt.ts`. When OpenAI is unreachable the API answers 503 `MODERATION_UNAVAILABLE` and nothing is published.
+
+## Solana dApp Store build
+
+With `SOLANA_ENABLED=1` the backend also serves the Android `solana` flavor: wallets linked with Sign In With Solana, soulbound compressed-NFT check-in stamps that open a place's chat, loyalty levels with a Regulars room, USDC/SKR tips, USDC marketplace payments through an escrow wallet, SKR level rewards and moderator-run perks. Requests from that build carry `X-Larea-Build: solana`; everyone else is unaffected. Setup, configuration and publishing: `../docs/solana.md`.
 
 ## Production
 

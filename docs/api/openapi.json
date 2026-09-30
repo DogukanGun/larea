@@ -345,6 +345,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "x-larea-build",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -507,6 +515,787 @@
         ]
       }
     },
+    "/solana/wallet/challenge": {
+      "post": {
+        "operationId": "WalletController_challenge",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Sign In With Solana fields for the wallet to sign (one-time nonce, 5 min)",
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/solana/wallet": {
+      "post": {
+        "operationId": "WalletController_link",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkWalletDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Link the wallet that signed the challenge",
+        "tags": [
+          "solana"
+        ]
+      },
+      "get": {
+        "operationId": "WalletController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The linked wallet and its SOL, USDC and SKR balances",
+        "tags": [
+          "solana"
+        ]
+      },
+      "delete": {
+        "operationId": "WalletController_unlink",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Unlink the wallet (stamps stay in it)",
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/venues/{id}/checkin": {
+      "post": {
+        "operationId": "StampsController_checkin",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocationFixDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Check in: checks the location and returns a stamp mint for the wallet to sign",
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/venues/{id}/stamp": {
+      "get": {
+        "operationId": "StampsController_venueStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Whether a stamp here currently opens the chat, and the visit count",
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/solana/stamps/{id}/submit": {
+      "post": {
+        "operationId": "StampsController_submit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitStampDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Send a wallet-signed check-in transaction (when the wallet only signs)",
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/solana/stamps/{id}/confirm": {
+      "post": {
+        "operationId": "StampsController_confirm",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmStampDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Report the signature of a check-in the wallet sent; returns the stamp state",
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/solana/levels": {
+      "get": {
+        "operationId": "StampsController_levels",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My loyalty level at every place I have checked in",
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/solana/stamps": {
+      "get": {
+        "operationId": "StampsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My confirmed stamps, cross-checked with the DAS index when configured",
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/venues/{id}/tips": {
+      "post": {
+        "operationId": "TipsController_create",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTipDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Tip someone in this chat in USDC or SKR; returns the transfer for the wallet to sign",
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/solana/tips/{id}/submit": {
+      "post": {
+        "operationId": "TipsController_submit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitStampDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Send a wallet-signed tip (when the wallet only signs)",
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/solana/tips/{id}/confirm": {
+      "post": {
+        "operationId": "TipsController_confirm",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmStampDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Report the signature of a tip the wallet sent; returns its state",
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/venues/{id}/perks": {
+      "get": {
+        "operationId": "PerksController_atVenue",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Perks running at this place and whether my level reaches them",
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/solana/perks/{id}/claim": {
+      "post": {
+        "operationId": "PerksController_claim",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Claim an SKR drop (once per holder); Larea sends the SKR",
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/solana/rewards": {
+      "get": {
+        "operationId": "PerksController_mine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "SKR I received for reaching levels",
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/admin/perks": {
+      "post": {
+        "operationId": "PerksAdminController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePerkDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Start a perk at a place for holders of a level (NOTICE, or an SKR_DROP claimed once per holder)",
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "operationId": "PerksAdminController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Perks, newest first, with claim counts",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/perks/{id}": {
+      "delete": {
+        "operationId": "PerksAdminController_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "End a perk now",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/solana/metadata/stamps/{id}.json": {
+      "get": {
+        "operationId": "MetadataController_stamp",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/solana/metadata/stamps/{id}.svg": {
+      "get": {
+        "operationId": "MetadataController_stampImage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/solana/metadata/levels/{id}.json": {
+      "get": {
+        "operationId": "MetadataController_level",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/solana/metadata/levels/{id}.svg": {
+      "get": {
+        "operationId": "MetadataController_levelImage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/solana/metadata/{kind}.json": {
+      "get": {
+        "operationId": "MetadataController_collection",
+        "parameters": [
+          {
+            "name": "kind",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/solana/metadata/{kind}.svg": {
+      "get": {
+        "operationId": "MetadataController_collectionImage",
+        "parameters": [
+          {
+            "name": "kind",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "solana"
+        ]
+      }
+    },
+    "/venues/{id}/messages": {
+      "post": {
+        "operationId": "MessagesController_send",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Send a message; it is moderated before anyone sees it",
+        "tags": [
+          "messages"
+        ]
+      },
+      "get": {
+        "operationId": "MessagesController_history",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "room",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "MAIN",
+              "type": "string",
+              "enum": [
+                "MAIN",
+                "REGULARS"
+              ]
+            }
+          },
+          {
+            "name": "afterId",
+            "required": false,
+            "in": "query",
+            "description": "Return messages newer than this message id (gap fill after reconnect)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Recent visible messages (oldest first), or everything after a message id",
+        "tags": [
+          "messages"
+        ]
+      }
+    },
     "/uploads": {
       "post": {
         "operationId": "MediaController_upload",
@@ -549,7 +1338,16 @@
     "/market/listings": {
       "post": {
         "operationId": "ListingsController_create",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "x-larea-build",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -892,6 +1690,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "x-larea-build",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1105,6 +1911,74 @@
         ]
       }
     },
+    "/market/orders/{id}/solana/pay": {
+      "post": {
+        "operationId": "OrdersController_solanaPay",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "USDC deals: a transfer of the full amount from the buyer's wallet into Larea's escrow, for the wallet to sign",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/market/orders/{id}/solana/submit": {
+      "post": {
+        "operationId": "OrdersController_solanaSubmit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolanaPaymentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "USDC deals: report the signed payment (or its signature); returns the deal, PAID once it landed",
+        "tags": [
+          "market"
+        ]
+      }
+    },
     "/market/orders/{id}/approve": {
       "post": {
         "operationId": "OrdersController_approve",
@@ -1222,92 +2096,6 @@
         ]
       }
     },
-    "/venues/{id}/messages": {
-      "post": {
-        "operationId": "MessagesController_send",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SendMessageDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Send a message; it is moderated before anyone sees it",
-        "tags": [
-          "messages"
-        ]
-      },
-      "get": {
-        "operationId": "MessagesController_history",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "afterId",
-            "required": false,
-            "in": "query",
-            "description": "Return messages newer than this message id (gap fill after reconnect)",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "default": 50,
-              "type": "number"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Recent visible messages (oldest first), or everything after a message id",
-        "tags": [
-          "messages"
-        ]
-      }
-    },
     "/venues/{id}/polls": {
       "post": {
         "operationId": "PollsController_create",
@@ -1316,6 +2104,14 @@
             "name": "id",
             "required": true,
             "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-larea-build",
+            "required": true,
+            "in": "header",
             "schema": {
               "type": "string"
             }
@@ -1907,7 +2703,8 @@
             "type": "string",
             "enum": [
               "apple",
-              "google"
+              "google",
+              "self"
             ]
           },
           "lowerBound": {
@@ -1958,6 +2755,66 @@
           "lat",
           "lng",
           "accuracy"
+        ]
+      },
+      "LinkWalletDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "SubmitStampDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ConfirmStampDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateTipDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreatePerkDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "SendMessageDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "TEXT",
+              "IMAGE"
+            ],
+            "default": "TEXT",
+            "description": "IMAGE messages carry a mediaId from POST /uploads and an optional caption in text"
+          },
+          "room": {
+            "type": "string",
+            "enum": [
+              "MAIN",
+              "REGULARS"
+            ],
+            "default": "MAIN",
+            "description": "REGULARS: the place's room for level 2+ (Solana build)"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 500,
+            "example": "Anyone want to get food?",
+            "description": "Required for TEXT; optional caption for IMAGE"
+          },
+          "mediaId": {
+            "type": "string",
+            "description": "Upload id for IMAGE messages"
+          },
+          "clientKey": {
+            "type": "string",
+            "description": "Client-generated idempotency key (e.g. a UUID); resending with the same key returns the original result"
+          }
+        },
+        "required": [
+          "clientKey"
         ]
       },
       "CreateListingDto": {
@@ -2112,6 +2969,10 @@
           "amountCents"
         ]
       },
+      "SolanaPaymentDto": {
+        "type": "object",
+        "properties": {}
+      },
       "ApproveOrderDto": {
         "type": "object",
         "properties": {
@@ -2123,37 +2984,6 @@
         },
         "required": [
           "code"
-        ]
-      },
-      "SendMessageDto": {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "enum": [
-              "TEXT",
-              "IMAGE"
-            ],
-            "default": "TEXT",
-            "description": "IMAGE messages carry a mediaId from POST /uploads and an optional caption in text"
-          },
-          "text": {
-            "type": "string",
-            "maxLength": 500,
-            "example": "Anyone want to get food?",
-            "description": "Required for TEXT; optional caption for IMAGE"
-          },
-          "mediaId": {
-            "type": "string",
-            "description": "Upload id for IMAGE messages"
-          },
-          "clientKey": {
-            "type": "string",
-            "description": "Client-generated idempotency key (e.g. a UUID); resending with the same key returns the original result"
-          }
-        },
-        "required": [
-          "clientKey"
         ]
       },
       "CreatePollDto": {

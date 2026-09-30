@@ -3,6 +3,8 @@ import { parseEnv } from 'node:util';
 import { z } from 'zod';
 
 const bool = (v: unknown) => v === 'true' || v === '1';
+/** An empty value in a .env file means the setting is not set. */
+const emptyAsUnset = (v: unknown) => (v === '' ? undefined : v);
 
 export const envSchema = z
   .object({
@@ -99,7 +101,7 @@ export const envSchema = z
     SOLANA_CLUSTER: z.enum(['localnet', 'devnet', 'mainnet']).default('devnet'),
     SOLANA_RPC_URL: z.url().default('https://api.devnet.solana.com'),
     /** A Digital Asset Standard RPC (Helius, Triton, …) for reading compressed NFTs; optional. */
-    SOLANA_DAS_URL: z.url().optional(),
+    SOLANA_DAS_URL: z.preprocess(emptyAsUnset, z.url().optional()),
     /** Base58 secret keys: tree/collection authority, marketplace escrow, loyalty rewards. */
     SOLANA_AUTHORITY_SECRET: z.string().optional(),
     SOLANA_ESCROW_SECRET: z.string().optional(),
@@ -110,7 +112,7 @@ export const envSchema = z
     USDC_MINT: z.string().optional(),
     SKR_MINT: z.string().optional(),
     /** Base URL of the stamp and level metadata JSON (served by this backend). */
-    SOLANA_METADATA_URL: z.url().optional(),
+    SOLANA_METADATA_URL: z.preprocess(emptyAsUnset, z.url().optional()),
     /** Stamps on distinct days needed for Regular, Local and Legend at one place. */
     LOYALTY_LEVELS: z
       .string()

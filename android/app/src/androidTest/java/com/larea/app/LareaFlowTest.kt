@@ -27,6 +27,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
 import com.larea.app.core.DebugFlags
 import org.junit.After
+import org.junit.Assume
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -140,6 +141,8 @@ class LareaFlowTest {
 
     @Test
     fun signUpVerifyPostJoinAndChat() {
+        // The Solana build joins through a wallet check-in; SolanaFlowTest covers that flavor.
+        Assume.assumeFalse(BuildConfig.SOLANA)
         DebugFlags.set(testAgePass = true, testSeedImage = true)
         val intent = Intent(context, MainActivity::class.java)
             .putExtra("LareaTestAgePass", true)
