@@ -90,6 +90,37 @@ export const envSchema = z
     /** Production refuses test keys unless this is set (the Hetzner test server sets it). */
     STRIPE_ALLOW_TEST_MODE: z.preprocess(bool, z.boolean()).default(false),
 
+    /**
+     * Solana features for the dApp Store build of the Android app: check-in stamps (soulbound compressed
+     * NFTs), stamp-gated chat, loyalty levels, tips and USDC marketplace payments. See docs/solana.md.
+     */
+    SOLANA_ENABLED: z.preprocess(bool, z.boolean()).default(false),
+    /** `localnet` (solana-test-validator), `devnet` or `mainnet`; only used for explorer links and checks. */
+    SOLANA_CLUSTER: z.enum(['localnet', 'devnet', 'mainnet']).default('devnet'),
+    SOLANA_RPC_URL: z.url().default('https://api.devnet.solana.com'),
+    /** A Digital Asset Standard RPC (Helius, Triton, …) for reading compressed NFTs; optional. */
+    SOLANA_DAS_URL: z.url().optional(),
+    /** Base58 secret keys: tree/collection authority, marketplace escrow, loyalty rewards. */
+    SOLANA_AUTHORITY_SECRET: z.string().optional(),
+    SOLANA_ESCROW_SECRET: z.string().optional(),
+    SOLANA_REWARDS_SECRET: z.string().optional(),
+    SOLANA_STAMP_TREE: z.string().optional(),
+    SOLANA_STAMP_COLLECTION: z.string().optional(),
+    SOLANA_LEVEL_COLLECTION: z.string().optional(),
+    USDC_MINT: z.string().optional(),
+    SKR_MINT: z.string().optional(),
+    /** Base URL of the stamp and level metadata JSON (served by this backend). */
+    SOLANA_METADATA_URL: z.url().optional(),
+    /** Stamps on distinct days needed for Regular, Local and Legend at one place. */
+    LOYALTY_LEVELS: z
+      .string()
+      .default('5,15,40')
+      .refine((v) => /^\d+,\d+,\d+$/.test(v), 'three comma-separated counts'),
+    /** SKR sent from the rewards wallet when someone reaches a level (whole tokens; 0 = off). */
+    SKR_LEVEL_REWARD: z.coerce.number().min(0).default(5),
+    /** A check-in transaction the wallet did not send within this window is given up. */
+    SOLANA_PENDING_TTL_SEC: z.coerce.number().int().positive().default(600),
+
     REPORT_AUTO_HIDE_THRESHOLD: z.coerce.number().int().positive().default(3),
     MESSAGE_RETENTION_DAYS: z.coerce.number().int().positive().default(7),
     MODERATION_RECORD_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
@@ -112,6 +143,11 @@ export const envSchema = z
     if (env.MARKET_MAX_PRICE_CENTS < env.MARKET_MIN_PRICE_CENTS) {
       ctx.addIssue({ code: 'custom', path: ['MARKET_MAX_PRICE_CENTS'], message: 'must be >= MARKET_MIN_PRICE_CENTS' });
     }
+    if (env.SOLANA_ENABLED && env.NODE_ENV !== 'test') {
+      for (const key of ['SOLANA_AUTHORITY_SECRET', 'SOLANA_ESCROW_SECRET', 'SOLANA_REWARDS_SECRET', 'SOLANA_STAMP_TREE', 'SOLANA_STAMP_COLLECTION', 'SOLANA_LEVEL_COLLECTION', 'USDC_MINT', 'SKR_MINT'] as const) {
+        if (!env[key]) ctx.addIssue({ code: 'custom', path: [key], message: 'required when SOLANA_ENABLED=1 (run pnpm solana:setup)' });
+      }
+    }
     if (env.NODE_ENV === 'production' && env.MARKET_PAYMENTS_ENABLED) {
       if (!env.STRIPE_SECRET_KEY) ctx.addIssue({ code: 'custom', path: ['STRIPE_SECRET_KEY'], message: 'required when MARKET_PAYMENTS_ENABLED=1' });
       if (!env.STRIPE_WEBHOOK_SECRET) ctx.addIssue({ code: 'custom', path: ['STRIPE_WEBHOOK_SECRET'], message: 'required when MARKET_PAYMENTS_ENABLED=1' });
@@ -129,16 +165,24 @@ export interface Features {
   polls: boolean;
   market: boolean;
   payments: boolean;
+  /** Solana features (stamps, tips, USDC market); only the dApp Store build uses them. */
+  solana: boolean;
 }
 
 export function marketEnabled(env: Pick<Env, 'MARKET_ENABLED' | 'NODE_ENV'>): boolean {
   return env.MARKET_ENABLED ?? env.NODE_ENV !== 'production';
 }
 
-export function featuresOf(env: Pick<Env, 'MARKET_ENABLED' | 'MARKET_PAYMENTS_ENABLED' | 'NODE_ENV'>): Features {
+export function featuresOf(env: Pick<Env, 'MARKET_ENABLED' | 'MARKET_PAYMENTS_ENABLED' | 'NODE_ENV' | 'SOLANA_ENABLED'>): Features {
   const market = marketEnabled(env);
   // images and polls flip to true when their milestones ship; market/payments are configuration.
-  return { images: true, polls: true, market, payments: market && env.MARKET_PAYMENTS_ENABLED };
+  return { images: true, polls: true, market, payments: market && env.MARKET_PAYMENTS_ENABLED, solana: env.SOLANA_ENABLED };
+}
+
+/** Level thresholds (stamps on distinct days) for Regular, Local and Legend. */
+export function loyaltyThresholds(env: Pick<Env, 'LOYALTY_LEVELS'>): [number, number, number] {
+  const [regular, local, legend] = env.LOYALTY_LEVELS.split(',').map(Number);
+  return [regular, local, legend];
 }
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {

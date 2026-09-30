@@ -1,8 +1,9 @@
 [versions]
 agp = "9.4.0"
-# AGP 9.4 bundles the Kotlin Gradle plugin 2.2.10; compiler plugins must match it.
-kotlin = "2.2.10"
-ksp = "2.3.11"
+# Newer than the Kotlin Gradle plugin AGP 9.4 bundles (2.2.10): the root build puts this version on the classpath,
+# which Solana Mobile Wallet Adapter 2.2 and Coil 3.5+ need. Compiler plugins must match it.
+kotlin = "2.4.10"
+ksp = "2.3.12"
 hilt = "2.60.1"
 hiltNavigationCompose = "1.4.0"
 composeBom = "2026.08.00"
@@ -20,8 +21,7 @@ junit = "4.13.2"
 # The OpenGL ES build: the default `android-sdk` artifact is Vulkan-only since 13.x and fails on emulators and older GPUs.
 # MapLibre: the `android-sdk-opengl` build; the plain `android-sdk` artifact is Vulkan-only since 13.x and fails on emulators and older GPUs.
 maplibre = "13.6.1"
-# Coil 3.5+ is built with Kotlin 2.4; AGP 9.4 bundles Kotlin 2.2, which reads metadata up to 2.3.
-coil = "3.4.0"
+coil = "3.6.3"
 ageSignals = "0.0.4"
 exifinterface = "1.4.2"
 splashscreen = "1.2.0"
