@@ -167,7 +167,7 @@ data class JoinResult(val membership: MembershipInfo, val venue: VenueView, val 
 data class Author(val id: String, val displayName: String)
 
 enum class MessageKind(val raw: String) {
-    TEXT("TEXT"), IMAGE("IMAGE"), POLL("POLL"), UNKNOWN("unknown");
+    TEXT("TEXT"), IMAGE("IMAGE"), POLL("POLL"), TIP("TIP"), UNKNOWN("unknown");
 
     companion object {
         fun from(raw: String?): MessageKind = if (raw == null) TEXT else entries.firstOrNull { it.raw == raw } ?: UNKNOWN
@@ -216,6 +216,10 @@ data class PollView(
     fun merging(update: PollView): PollView = update.copy(myOptionId = update.myOptionId ?: myOptionId)
 }
 
+/** A confirmed tip announced in the chat (Solana build); `amount` is whole tokens, e.g. "2.5". */
+@Serializable
+data class TipInfo(val id: String, val token: String, val amount: String, val to: Author, val signature: String? = null)
+
 @Serializable
 data class ChatMessage(
     val id: String,
@@ -229,6 +233,7 @@ data class ChatMessage(
     val caption: String? = null,
     val image: ImageAttachment? = null,
     val poll: PollView? = null,
+    val tip: TipInfo? = null,
     /** The author's loyalty level at this place (Solana build); 0 = none. */
     val authorLevel: Int = 0,
     /** "REGULARS" for the Regulars room; null = the main chat. */

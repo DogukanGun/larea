@@ -39,4 +39,4 @@ export const CLONED_PROGRAMS = [
 ] as const;
 
 /** Stablecoin and SKR both use 6 decimals. */
-export const TOKEN_DECIMALS = 6;
+export { TOKEN_DECIMALS } from './units.js';

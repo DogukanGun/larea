@@ -3,7 +3,7 @@ import { BlocksService } from '../blocks/blocks.service.js';
 import { badRequest, forbidden, notFound, unavailable } from '../common/errors.js';
 import type { UserSnapshot } from '../common/types.js';
 import { EnforcementService } from '../enforcement/enforcement.service.js';
-import type { ChatRoom, Message, MessageStatus } from '../generated/prisma/client.js';
+import type { ChatRoom, Message, MessageStatus, Tip } from '../generated/prisma/client.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../infra/prisma/prisma.service.js';
 import { REGULAR } from '../loyalty/levels.js';
@@ -14,6 +14,7 @@ import { type ModerationDecision, ModerationUnavailableError } from '../moderati
 import { MAX_CAPTION_LENGTH, normalizeText } from '../moderation/rules.js';
 import { POLL_INCLUDE, type PollRow, toPollView } from '../polls/poll-view.js';
 import { PresenceService } from '../presence/presence.service.js';
+import { formatUnits } from '../solana/units.js';
 import type { ChatMessageView } from '../realtime/protocol.js';
 import { RealtimeBus } from '../realtime/realtime.bus.js';
 import { VenuesService } from '../venues/venues.service.js';
@@ -31,12 +32,18 @@ export interface SendResult {
   notice?: string;
 }
 
-export type MessageRow = Message & { author: { id: string; displayName: string }; media?: MediaSummary | null; poll?: PollRow | null };
+export type MessageRow = Message & {
+  author: { id: string; displayName: string };
+  media?: MediaSummary | null;
+  poll?: PollRow | null;
+  tip?: (Tip & { to: { id: string; displayName: string } }) | null;
+};
 
 export const MESSAGE_INCLUDE = {
   author: { select: { id: true, displayName: true } },
   media: { select: MEDIA_SUMMARY_SELECT },
   poll: { include: POLL_INCLUDE },
+  tip: { include: { to: { select: { id: true, displayName: true } } } },
 } as const;
 
 export interface SendInput {
@@ -81,6 +88,9 @@ export class MessagesService {
       if (image) view.image = image;
     }
     if (m.kind === 'POLL' && m.poll) view.poll = toPollView(m.poll);
+    if (m.kind === 'TIP' && m.tip) {
+      view.tip = { id: m.tip.id, token: m.tip.token, amount: formatUnits(m.tip.amount), to: m.tip.to, signature: m.tip.signature };
+    }
     return view;
   }
 

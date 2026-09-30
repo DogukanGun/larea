@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.Paid
 import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -77,6 +78,7 @@ import com.larea.app.core.DebugFlags
 import com.larea.app.core.format.Dates
 import com.larea.app.core.media.ImageUploader
 import com.larea.app.core.media.PreparedImage
+import com.larea.app.core.network.Author
 import com.larea.app.core.network.ChatMessage
 import com.larea.app.core.network.ImageAttachment
 import com.larea.app.core.realtime.ConnectionState
@@ -116,6 +118,13 @@ fun ChatScreen(session: ChatSession, venueName: String, onLeft: () -> Unit, onBa
     var viewing by remember { mutableStateOf<ImageAttachment?>(null) }
     var showMembers by remember { mutableStateOf(false) }
     var showCreatePoll by remember { mutableStateOf(false) }
+    var tipping by remember { mutableStateOf<Author?>(null) }
+    val solana = LocalSolanaUi.current
+    fun othersActions(message: ChatMessage) = listOfNotNull(
+        if (solana.enabled) MenuAction("Tip ${message.author.displayName}", Icons.Filled.Paid) { tipping = message.author } else null,
+        MenuAction("Report", Icons.Filled.Flag) { reporting = message },
+        MenuAction("Block ${message.author.displayName}", Icons.Filled.PanTool, destructive = true) { blocking = message },
+    )
     val presenceText = if (state.presence == 1) "1 person here" else "${state.presence} people here"
 
     // Newest row first so the list stays anchored to the bottom (reverse layout).
@@ -167,7 +176,7 @@ fun ChatScreen(session: ChatSession, venueName: String, onLeft: () -> Unit, onBa
                 }
             },
         )
-        LocalSolanaUi.current.RoomSwitch(state.venueId, state.room, session::switchRoom)
+        solana.RoomSwitch(state.venueId, state.room, session::switchRoom)
         if (state.connection != ConnectionState.Connected) Banner(BannerKind.Info, "Reconnecting…")
         if (state.weakGps) Banner(BannerKind.Warning, "Weak GPS signal. We may not be able to confirm you're still here.")
         if (state.isMuted) Banner(BannerKind.Danger, "You can't send messages until ${Dates.short(state.mutedUntil)}.")
@@ -195,10 +204,7 @@ fun ChatScreen(session: ChatSession, venueName: String, onLeft: () -> Unit, onBa
                                         onOpenImage = { viewing = it },
                                         onLongPress = if (mine) null else ({ menuFor = row.message.id }),
                                     )
-                                    MessageMenu(expanded = menuFor == row.message.id, onDismiss = { menuFor = null }, items = listOf(
-                                        MenuAction("Report", Icons.Filled.Flag) { reporting = row.message },
-                                        MenuAction("Block ${row.message.author.displayName}", Icons.Filled.PanTool, destructive = true) { blocking = row.message },
-                                    ))
+                                    MessageMenu(expanded = menuFor == row.message.id, onDismiss = { menuFor = null }, items = othersActions(row.message))
                                 }
                             }
                             is ChatRow.Poll -> {
@@ -214,10 +220,7 @@ fun ChatScreen(session: ChatSession, venueName: String, onLeft: () -> Unit, onBa
                                             items = if (mine) {
                                                 if (poll.isClosed()) emptyList() else listOf(MenuAction("Close poll", Icons.Filled.StopCircle) { session.closePoll(message.id) })
                                             } else {
-                                                listOf(
-                                                    MenuAction("Report", Icons.Filled.Flag) { reporting = message },
-                                                    MenuAction("Block ${message.author.displayName}", Icons.Filled.PanTool, destructive = true) { blocking = message },
-                                                )
+                                                othersActions(message)
                                             },
                                         )
                                     }
@@ -225,6 +228,7 @@ fun ChatScreen(session: ChatSession, venueName: String, onLeft: () -> Unit, onBa
                                     Bubble(message.text, mine, GroupPosition.Single, pending = false)
                                 }
                             }
+                            is ChatRow.Tip -> TipChip(row.message)
                             is ChatRow.Notice -> NoticeChip(row.notice)
                             is ChatRow.Pending -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
                                 val image = row.pending.image
@@ -281,6 +285,7 @@ fun ChatScreen(session: ChatSession, venueName: String, onLeft: () -> Unit, onBa
             session.createPoll(poll)
         }
     }
+    tipping?.let { author -> solana.TipDialog(state.venueId, author, onDismiss = { tipping = null }) }
     reporting?.let { message ->
         ReportSheet("Report message", ReportReasons.chat, onDismiss = { reporting = null }) { reason ->
             reporting = null

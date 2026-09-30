@@ -8,6 +8,7 @@ export class DisabledSolanaClient implements SolanaClient {
   readonly cluster = 'devnet' as const;
   balances = (): Promise<WalletBalances> => off();
   buildStampMint = (): Promise<PreparedTransaction> => off();
+  buildTransfer = (): Promise<PreparedTransaction> => off();
   submit = (): Promise<string> => off();
   confirm = (): Promise<Confirmation> => off();
   assetsByOwner = (): Promise<string[] | null> => Promise.resolve(null);

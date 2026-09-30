@@ -4,6 +4,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.larea.app.core.location.Fix
+import com.larea.app.core.network.Author
 
 /**
  * What the Solana dApp Store build adds to the shared screens: wallet, check-in stamps, loyalty,
@@ -29,6 +30,10 @@ interface SolanaUi {
     /** Under the chat's top bar: switch between the main chat and the place's Regulars room. */
     @Composable
     fun RoomSwitch(venueId: String, room: String, onRoom: (String) -> Unit) {}
+
+    /** Tip someone in the chat in USDC or SKR (their long-press menu offers it when [enabled]). */
+    @Composable
+    fun TipDialog(venueId: String, recipient: Author, onDismiss: () -> Unit) {}
 
     /** Wallet, stamps and levels on the Profile tab. */
     @Composable

@@ -71,4 +71,12 @@ class ChatModelsTest {
         assertEquals("Keep each option under 60 characters.", PollValidation.validate(PollDraft("Q?", listOf("a", "b".repeat(61)))))
         assertEquals("Options must be different from each other.", PollValidation.validate(PollDraft("Q?", listOf("Same", "same"))))
     }
+
+    @Test
+    fun `tips stand alone and break author groups`() {
+        val rows = buildChatRows(listOf(message("a1", "anna", 0), message("t1", "anna", 10, "TIP"), message("a2", "anna", 20)))
+        assertEquals(listOf("a1", "t1", "a2"), rows.filter { it !is ChatRow.Separator }.map { it.key })
+        assertEquals(1, rows.filterIsInstance<ChatRow.Tip>().size)
+        assertEquals(listOf(GroupPosition.Single, GroupPosition.Single), positions(rows).map { it.position })
+    }
 }

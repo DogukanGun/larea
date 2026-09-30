@@ -54,18 +54,29 @@ export interface ChatPollView {
   myOptionId?: string | null;
 }
 
+export interface ChatTipView {
+  id: string;
+  token: 'USDC' | 'SKR';
+  /** Whole units as a decimal string, e.g. "2.5". */
+  amount: string;
+  to: { id: string; displayName: string };
+  signature: string | null;
+}
+
 export interface ChatMessageView {
   id: string;
   venueId: string;
   author: { id: string; displayName: string };
   /** TEXT unless stated; clients that do not know a kind show `text`. */
-  kind: 'TEXT' | 'IMAGE' | 'POLL';
+  kind: 'TEXT' | 'IMAGE' | 'POLL' | 'TIP';
   /** The message, or a readable fallback ("[Photo]", "Poll: …") for other kinds. */
   text: string;
   /** IMAGE only: the caption, possibly empty. */
   caption?: string;
   image?: ChatImageView;
   poll?: ChatPollView;
+  /** TIP only (Solana build): who got how much. `text` reads "anna tipped ben 2 USDC". */
+  tip?: ChatTipView;
   /** Only on messages in a place's Regulars room (Solana build); absent = the main chat. */
   room?: 'REGULARS';
   /** The author's loyalty level at this place (1 Visitor … 4 Legend); absent when none. */

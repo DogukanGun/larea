@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { dasApi, type DasApiInterface } from '@metaplex-foundation/digital-asset-standard-api';
 import { getLeafSchemaSerializer, MPL_BUBBLEGUM_PROGRAM_ID, mintV2 } from '@metaplex-foundation/mpl-bubblegum';
-import { fetchToken, findAssociatedTokenPda } from '@metaplex-foundation/mpl-toolbox';
-import { createNoopSigner, publicKey, signTransaction, type TransactionBuilder, type Umi } from '@metaplex-foundation/umi';
+import { addMemo, createIdempotentAssociatedToken, fetchToken, findAssociatedTokenPda, transferTokensChecked } from '@metaplex-foundation/mpl-toolbox';
+import { createNoopSigner, publicKey, signTransaction, type TransactionBuilder, transactionBuilder, type Umi } from '@metaplex-foundation/umi';
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import bs58 from 'bs58';
 import type { Env } from '../config/env.js';
@@ -14,6 +14,7 @@ import {
   type SolanaClient,
   type StampMintInput,
   TransactionMismatchError,
+  type TransferInput,
   type WalletBalances,
 } from './solana.client.js';
 
@@ -78,6 +79,24 @@ export class RealSolanaClient implements SolanaClient {
     let builder = mint(this.env.SOLANA_STAMP_COLLECTION!, input.name, input.uri);
     if (input.levelBadge) builder = builder.add(mint(this.env.SOLANA_LEVEL_COLLECTION!, input.levelBadge.name, input.levelBadge.uri));
     return this.prepare(builder.setFeePayer(payer));
+  }
+
+  async buildTransfer(input: TransferInput): Promise<PreparedTransaction> {
+    const payer = createNoopSigner(publicKey(input.from));
+    const mint = publicKey(input.token === 'USDC' ? this.env.USDC_MINT! : this.env.SKR_MINT!);
+    const [source] = findAssociatedTokenPda(this.umi, { mint, owner: payer.publicKey });
+    const [destination] = findAssociatedTokenPda(this.umi, { mint, owner: publicKey(input.to) });
+    const built = await transactionBuilder()
+      .add(createIdempotentAssociatedToken(this.umi, { payer, ata: destination, owner: publicKey(input.to), mint }))
+      .add(transferTokensChecked(this.umi, { source, mint, destination, authority: payer, amount: input.amount, decimals: TOKEN_DECIMALS }))
+      .add(addMemo(this.umi, { memo: input.memo }))
+      .setFeePayer(payer)
+      .buildWithLatestBlockhash(this.umi);
+    // Nothing for Larea to sign: the sender's wallet is the only signer.
+    return {
+      transaction: Buffer.from(this.umi.transactions.serialize(built)).toString('base64'),
+      messageHash: hashMessage(built.serializedMessage),
+    };
   }
 
   async submit(signedTransaction: string, expectedMessageHash: string): Promise<string> {

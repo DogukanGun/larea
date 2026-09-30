@@ -3,6 +3,7 @@ package com.larea.app.solana
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
 import com.larea.app.core.location.Fix
+import com.larea.app.core.network.Author
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,6 +24,9 @@ class SolanaUiImpl @Inject constructor(
 
     @Composable
     override fun RoomSwitch(venueId: String, room: String, onRoom: (String) -> Unit) = RoomSwitchBar(venueId, room, onRoom)
+
+    @Composable
+    override fun TipDialog(venueId: String, recipient: Author, onDismiss: () -> Unit) = TipDialogContent(venueId, recipient, onDismiss)
 
     @Composable
     override fun ProfileSection() = WalletSection()

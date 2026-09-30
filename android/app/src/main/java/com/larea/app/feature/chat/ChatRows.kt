@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Paid
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -217,6 +218,26 @@ fun ImageBubble(
         }
         if (caption.isNotEmpty()) {
             Text(caption, style = LareaType.body, color = if (mine) Color.White else c.text, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+        }
+    }
+}
+
+/** "anna tipped ben 2 USDC", centred between the bubbles. */
+@Composable
+fun TipChip(message: ChatMessage) {
+    val c = Larea.colors
+    Box(Modifier.fillMaxWidth().padding(vertical = Spacing.xs), contentAlignment = Alignment.Center) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(c.brandTint)
+                .padding(horizontal = Spacing.m, vertical = 6.dp)
+                .testTag("chat.tip.${message.id}"),
+        ) {
+            Icon(Icons.Filled.Paid, contentDescription = null, tint = c.brandPrimary, modifier = Modifier.size(16.dp))
+            Text(message.text, style = LareaType.footnote.copy(fontWeight = FontWeight.SemiBold), color = c.text)
         }
     }
 }

@@ -84,6 +84,23 @@ data class SubmitStampRequest(val signedTransaction: String)
 @Serializable
 data class StampsResponse(val stamps: List<StampView> = emptyList(), val dasChecked: Boolean = false)
 
+@Serializable
+data class CreateTipRequest(val toUserId: String, val token: String, val amount: String)
+
+@Serializable
+data class TipView(
+    val id: String,
+    val token: String,
+    val amount: String,
+    /** PENDING, CONFIRMED or FAILED. */
+    val status: String = "PENDING",
+    val signature: String? = null,
+    val error: String? = null,
+)
+
+@Serializable
+data class TipResult(val tip: TipView, val transaction: String, val cluster: String = "devnet")
+
 /** The dApp Store build's Solana endpoints (see backend/src/solana). */
 interface SolanaApi {
     @POST("solana/wallet/challenge") suspend fun challenge(): SiwsChallenge
@@ -96,4 +113,7 @@ interface SolanaApi {
     @POST("solana/stamps/{id}/submit") suspend fun submitStamp(@Path("id") stampId: String, @Body body: SubmitStampRequest): StampView
     @GET("solana/stamps") suspend fun stamps(): StampsResponse
     @GET("solana/levels") suspend fun levels(): LevelsResponse
+
+    @POST("venues/{id}/tips") suspend fun tip(@Path("id") venueId: String, @Body body: CreateTipRequest): TipResult
+    @POST("solana/tips/{id}/submit") suspend fun submitTip(@Path("id") tipId: String, @Body body: SubmitStampRequest): TipView
 }

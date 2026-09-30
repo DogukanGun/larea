@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module.js';
+import { BlocksModule } from '../blocks/blocks.module.js';
 import { LoyaltyModule } from '../loyalty/loyalty.module.js';
+import { MessagesModule } from '../messages/messages.module.js';
 import { PresenceModule } from '../presence/presence.module.js';
 import { VenuesModule } from '../venues/venues.module.js';
 import { ENV } from '../config/config.module.js';
@@ -13,15 +15,18 @@ import { SOLANA_CLIENT, type SolanaClient } from './solana.client.js';
 import { SolanaScheduler } from './solana.scheduler.js';
 import { MetadataController, StampsController } from './stamps.controller.js';
 import { StampsService } from './stamps.service.js';
+import { TipsController } from './tips.controller.js';
+import { TipsService } from './tips.service.js';
 import { WalletController } from './wallet.controller.js';
 import { WalletService } from './wallet.service.js';
 
 @Module({
-  imports: [AuthModule, PresenceModule, VenuesModule, LoyaltyModule],
-  controllers: [WalletController, StampsController, MetadataController],
+  imports: [AuthModule, PresenceModule, VenuesModule, LoyaltyModule, BlocksModule, MessagesModule],
+  controllers: [WalletController, StampsController, TipsController, MetadataController],
   providers: [
     WalletService,
     StampsService,
+    TipsService,
     SolanaScheduler,
     SolanaEnabledGuard,
     {

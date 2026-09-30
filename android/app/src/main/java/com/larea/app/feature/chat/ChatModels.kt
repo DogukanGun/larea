@@ -25,6 +25,11 @@ sealed interface ChatRow {
         override val key get() = message.id
     }
 
+    /** A tip announcement, centred like a notice. */
+    data class Tip(val message: ChatMessage) : ChatRow {
+        override val key get() = message.id
+    }
+
     /** A poll stands on its own: it never groups with the bubbles around it. */
     data class Poll(val message: ChatMessage) : ChatRow {
         override val key get() = message.id
@@ -59,10 +64,14 @@ fun buildChatRows(
             rows += ChatRow.Poll(message)
             return@forEachIndexed
         }
-        val withPrevious = previous != null && previous.first.kind != MessageKind.POLL && previous.first.author.id == message.author.id &&
+        if (message.kind == MessageKind.TIP) {
+            rows += ChatRow.Tip(message)
+            return@forEachIndexed
+        }
+        val withPrevious = previous != null && previous.first.groups && previous.first.author.id == message.author.id &&
             gapBefore!! < groupWindowMs && gapBefore < separatorGapMs
         val gapAfter = next?.let { it.second - time }
-        val withNext = next != null && next.first.kind != MessageKind.POLL && next.first.author.id == message.author.id &&
+        val withNext = next != null && next.first.groups && next.first.author.id == message.author.id &&
             gapAfter!! < groupWindowMs && gapAfter < separatorGapMs
         val position = when {
             !withPrevious && !withNext -> GroupPosition.Single
@@ -107,3 +116,6 @@ object PollValidation {
         }
     }
 }
+
+/** Polls and tips stand alone; everything else groups with the same author's neighbours. */
+private val ChatMessage.groups: Boolean get() = kind != MessageKind.POLL && kind != MessageKind.TIP

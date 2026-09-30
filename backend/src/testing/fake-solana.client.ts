@@ -6,14 +6,14 @@ import {
   type SolanaClient,
   type StampMintInput,
   TransactionMismatchError,
+  type TransferInput,
   type WalletBalances,
 } from '../solana/solana.client.js';
 
-interface FakeTx {
-  kind: 'stamp';
-  input: StampMintInput;
-  nonce: string;
-}
+/** A transfer as JSON: the amount in base units as a string. */
+export type PlainTransfer = Omit<TransferInput, 'amount'> & { amount: string };
+
+type FakeTx = { kind: 'stamp'; input: StampMintInput; nonce: string } | { kind: 'transfer'; input: PlainTransfer; nonce: string };
 
 /**
  * In-memory Solana for tests. A "transaction" is base64 JSON; the test plays the wallet with
@@ -42,6 +42,15 @@ export class FakeSolanaClient implements SolanaClient {
     return Promise.resolve(this.prepare({ kind: 'stamp', input, nonce: randomBytes(4).toString('hex') }));
   }
 
+  /** Transfers the tests built, in order (amounts as strings). */
+  readonly transfers: PlainTransfer[] = [];
+
+  buildTransfer(input: TransferInput): Promise<PreparedTransaction> {
+    const plain: PlainTransfer = { ...input, amount: input.amount.toString() };
+    this.transfers.push(plain);
+    return Promise.resolve(this.prepare({ kind: 'transfer', input: plain, nonce: randomBytes(4).toString('hex') }));
+  }
+
   /** What the wallet does: here, signing leaves the bytes unchanged. */
   sign(transaction: string): string {
     return transaction;
@@ -68,6 +77,7 @@ export class FakeSolanaClient implements SolanaClient {
     if (!sent || sent.outcome === 'pending') return Promise.resolve({ state: 'pending' });
     if (sent.outcome === 'failed') return Promise.resolve({ state: 'failed', error: 'simulated failure' });
     if (sent.hash !== expectedMessageHash) return Promise.resolve({ state: 'failed', error: 'transaction does not match the prepared one' });
+    if (sent.tx.kind === 'transfer') return Promise.resolve({ state: 'confirmed', minted: [] });
     const owner = sent.tx.input.owner;
     const minted = [sent.tx.input.name, ...(sent.tx.input.levelBadge ? [sent.tx.input.levelBadge.name] : [])].map(() => {
       const leafIndex = this.leafCounter++;

@@ -40,6 +40,8 @@ enum MessageKind {
   TEXT
   IMAGE
   POLL
+  /// A confirmed tip, posted by Larea on the sender's behalf (Solana build).
+  TIP
 }
 
 /// Every place has its main chat; the Solana build adds a room for its Regulars (level 2+).
@@ -186,6 +188,8 @@ model User {
   stripeAccount        StripeAccount?
   wallet               Wallet?
   stamps               Stamp[]
+  tipsSent             Tip[]                 @relation("TipsSent")
+  tipsReceived         Tip[]                 @relation("TipsReceived")
 }
 
 model RefreshToken {
@@ -238,6 +242,7 @@ model Venue {
   memberships Membership[]
   messages    Message[]
   stamps      Stamp[]
+  tips        Tip[]
 
   @@unique([source, sourceRef])
   @@index([lat, lng])
@@ -284,6 +289,7 @@ model Message {
   author  User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   media   Media?   @relation(fields: [mediaId], references: [id], onDelete: SetNull)
   poll    Poll?
+  tip     Tip?
   reports Report[]
 
   @@unique([authorId, clientKey])
@@ -629,4 +635,46 @@ model Stamp {
 
   @@index([userId, venueId, status])
   @@index([status, createdAt])
+}
+
+enum TipToken {
+  USDC
+  SKR
+}
+
+enum TipStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+}
+
+/// A tip in the chat: an SPL transfer from the sender's wallet to the recipient's, built by Larea
+/// and signed by the sender. Once confirmed, a TIP message announces it in the place's chat.
+model Tip {
+  id          String    @id @default(uuid())
+  venueId     String
+  fromUserId  String
+  toUserId    String
+  fromWallet  String
+  toWallet    String
+  token       TipToken
+  /// Base units (6 decimals).
+  amount      BigInt
+  status      TipStatus @default(PENDING)
+  /// sha256 of the transaction message we built; a submitted transaction must match it.
+  messageHash String
+  signature   String?   @unique
+  messageId   String?   @unique
+  error       String?
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  confirmedAt DateTime?
+
+  venue   Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  from    User     @relation("TipsSent", fields: [fromUserId], references: [id], onDelete: Cascade)
+  to      User     @relation("TipsReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+  message Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([fromUserId, createdAt])
 }
