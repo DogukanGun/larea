@@ -235,7 +235,7 @@ export default function Home() {
             </div>
             <ol className="rules">
               {rules.map(([title, text], i) => (
-                <li key={title} className="rules__row reveal">
+                <li key={title} className="rules__row reveal" style={{ "--d": i % 3 } as React.CSSProperties}>
                   <span>0{i + 1}</span>
                   <h3>{title}</h3>
                   <p>{text}</p>
