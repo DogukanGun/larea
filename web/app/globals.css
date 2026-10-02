@@ -408,8 +408,7 @@ body:has(.top.is-light) .rail {
     background-color 0.3s;
 }
 
-.rail__btn:hover .rail__label,
-.rail__btn.is-on .rail__label {
+.rail__btn:hover .rail__label {
   opacity: 1;
   transform: none;
 }
@@ -1014,16 +1013,18 @@ body:has(.top.is-light) .rail {
 }
 
 .band__track {
+  /* Starts on the same left edge as the heading, however wide the screen is. */
+  --edge: max(var(--gutter), calc((100vw - var(--shell)) / 2 + var(--gutter)));
   display: flex;
   gap: clamp(16px, 2vw, 28px);
   margin-top: 48px;
-  padding-inline: var(--gutter);
+  padding-inline: var(--edge);
   will-change: transform;
   transform: translate3d(calc(var(--band-x, 0) * -1px), 0, 0);
 }
 
 .panel {
-  flex: 0 0 min(540px, 82vw);
+  flex: 0 0 min(560px, 82vw, max(420px, 38vw));
   display: flex;
   flex-direction: column;
   min-height: 380px;
@@ -1050,8 +1051,7 @@ body:has(.top.is-light) .rail {
 }
 
 .panel__name {
-  margin-top: auto;
-  padding-top: 48px;
+  padding-top: 56px;
   font-size: clamp(1.8rem, 2.8vw, 2.6rem);
   font-weight: 700;
   letter-spacing: -0.04em;
@@ -1067,6 +1067,11 @@ body:has(.top.is-light) .rail {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 24px;
+}
+
+.panel .tags {
+  margin-top: auto;
+  padding-top: 24px;
 }
 
 .tags li {

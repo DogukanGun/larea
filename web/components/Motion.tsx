@@ -58,6 +58,14 @@ function useScrollProgress(ref: React.RefObject<HTMLElement | null>, onProgress:
  * A horizontal track pinned while the page scrolls past it: the section is as tall as the
  * track is wide, and vertical scroll moves the panels sideways. Plain stacking on small screens.
  */
+/** How far the track must move so its last panel ends one page margin from the right edge. */
+function trackOverflow(t: HTMLElement): number {
+  const last = t.lastElementChild as HTMLElement | null;
+  if (!last) return 0;
+  const edge = parseFloat(getComputedStyle(t).paddingLeft) || 0;
+  return Math.max(0, last.offsetLeft + last.offsetWidth + edge - window.innerWidth);
+}
+
 export function Band({ head, children }: { head: ReactNode; children: ReactNode }) {
   const section = useRef<HTMLElement>(null);
   const track = useRef<HTMLOListElement>(null);
@@ -68,7 +76,7 @@ export function Band({ head, children }: { head: ReactNode; children: ReactNode 
       const t = track.current;
       if (!t) return;
       const pinned = window.matchMedia("(min-width: 861px) and (prefers-reduced-motion: no-preference)").matches;
-      const overflow = t.scrollWidth - window.innerWidth;
+      const overflow = trackOverflow(t);
       setHeight(pinned && overflow > 0 ? window.innerHeight + overflow : null);
     };
     measure();
@@ -79,7 +87,7 @@ export function Band({ head, children }: { head: ReactNode; children: ReactNode 
   useScrollProgress(section, (p, el) => {
     const t = track.current;
     if (!t) return;
-    const overflow = Math.max(0, t.scrollWidth - window.innerWidth);
+    const overflow = trackOverflow(t);
     el.style.setProperty("--band-x", String(p * overflow));
     el.style.setProperty("--band-p", String(p));
   });
