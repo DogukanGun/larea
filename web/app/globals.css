@@ -448,9 +448,9 @@ body:has(.top.is-light) .rail {
   position: relative;
   isolation: isolate;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   min-height: 100svh;
-  padding: 120px 0 72px;
+  padding: 104px 0 56px;
   overflow: clip;
 }
 
@@ -512,7 +512,7 @@ body:has(.top.is-light) .rail {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
   gap: clamp(32px, 5vw, 80px);
-  align-items: end;
+  align-items: center;
 }
 
 @media (max-width: 960px) {
@@ -1244,9 +1244,25 @@ body:has(.top.is-light) .rail {
   box-shadow: 0 0 10px var(--sunny);
 }
 
-/* Principles */
+/* Principles: centred column */
+.rules-head {
+  text-align: center;
+}
+
+.rules-head .eyebrow {
+  justify-content: center;
+}
+
+.rules-head .eyebrow::after {
+  content: "";
+  width: 32px;
+  height: 1px;
+  background: currentColor;
+}
+
 .rules {
-  margin-top: 64px;
+  max-width: 1080px;
+  margin: 64px auto 0;
   border-top: 1px solid var(--line);
 }
 

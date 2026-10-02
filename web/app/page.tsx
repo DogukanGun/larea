@@ -227,7 +227,7 @@ export default function Home() {
 
         <section className="section" id="safety" data-section="Safety">
           <div className="shell">
-            <div className="reveal">
+            <div className="reveal rules-head">
               <p className="eyebrow">Safety & privacy</p>
               <h2 className="h2">
                 Rules we hold <Underline>ourselves</Underline> to.
