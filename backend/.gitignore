@@ -7,3 +7,6 @@ src/generated/
 .DS_Store
 *.tsbuildinfo
 var/
+.env.devnet
+.env.production
+.env.demo

@@ -1,0 +1,67 @@
+# Demo stack for testers and hackathon judges, next to production on the same host.
+# A second API runs in development mode (simulated locations accepted, self-declared age, no account
+# age wait) with its own Postgres, Redis and uploads, and the production Caddy serves it under DEMO_DOMAIN.
+#
+#   cp .env.demo.example .env.demo   # then fill in the secrets (see ../docs/deployment.md)
+#   DOMAIN=api.example.com DEMO_DOMAIN=demo.example.com POSTGRES_PASSWORD=... \
+#     docker compose -f docker-compose.prod.yml -f docker-compose.demo.yml --env-file .env.production up -d --build
+services:
+  postgres-demo:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: larea
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: larea
+    volumes:
+      - postgres-demo-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U larea -d larea"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis-demo:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "no", "--save", "", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend-demo:
+    build: .
+    env_file: .env.demo
+    environment:
+      DATABASE_URL: postgresql://larea:${POSTGRES_PASSWORD}@postgres-demo:5432/larea
+      REDIS_URL: redis://redis-demo:6379
+      PORT: "3000"
+      MEDIA_DIR: /data/uploads
+    volumes:
+      - uploads-demo:/data/uploads
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
+    depends_on:
+      postgres-demo:
+        condition: service_healthy
+      redis-demo:
+        condition: service_healthy
+    restart: unless-stopped
+
+  caddy:
+    environment:
+      DEMO_DOMAIN: ${DEMO_DOMAIN:?set DEMO_DOMAIN}
+    # The demo Caddyfile imports the production one and adds the DEMO_DOMAIN site.
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile.demo", "--adapter", "caddyfile"]
+    volumes:
+      - ./docker/Caddyfile.demo:/etc/caddy/Caddyfile.demo:ro
+      - uploads-demo:/srv/media-demo:ro
+    depends_on:
+      - backend-demo
+
+volumes:
+  postgres-demo-data:
+  uploads-demo:
