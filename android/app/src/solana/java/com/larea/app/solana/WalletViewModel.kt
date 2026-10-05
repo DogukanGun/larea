@@ -20,6 +20,8 @@ data class WalletUiState(
     val loading: Boolean = true,
     val busy: Boolean = false,
     val error: String? = null,
+    /** One-off good news after connecting, e.g. the devnet starter funds. */
+    val notice: String? = null,
     /** "My stamps": null until opened. */
     val stamps: List<StampView>? = null,
     val stampsDasChecked: Boolean = false,
@@ -66,13 +68,16 @@ class WalletViewModel @Inject constructor(
                     signature = Base64.encodeToString(signIn.signature, Base64.NO_WRAP),
                 )
                 apiCall { api.link(body) }.getOrThrow()
-            }.onSuccess {
+            }.onSuccess { linked ->
+                _state.update { it.copy(notice = linked.starter?.let { s -> starterNotice(s, linked.cluster) }) }
                 sessions.refreshMe()
                 load()
             }.onFailure { e -> _state.update { it.copy(error = e.userMessage()) } }
             _state.update { it.copy(busy = false) }
         }
     }
+
+    fun dismissNotice() = _state.update { it.copy(notice = null) }
 
     fun loadStamps() {
         _state.update { it.copy(stampsLoading = true) }
@@ -91,9 +96,25 @@ class WalletViewModel @Inject constructor(
                 .onSuccess {
                     adapter.forget()
                     sessions.refreshMe()
-                    _state.update { it.copy(wallet = null, balances = null) }
+                    _state.update { it.copy(wallet = null, balances = null, notice = null) }
                 }
                 .onFailure { e -> _state.update { it.copy(error = e.userMessage()) } }
         }
     }
+}
+
+/** "Welcome gift: 0.05 SOL, 20 USDC and 20 SKR of devnet test funds are in your wallet." */
+internal fun starterNotice(s: StarterSummary, cluster: String): String {
+    fun amount(v: Double) = if (v == v.toLong().toDouble()) v.toLong().toString() else v.toString()
+    val parts = buildList {
+        if (s.sol > 0) add("${amount(s.sol)} SOL")
+        if (s.usdc > 0) add("${amount(s.usdc)} USDC")
+        if (s.skr > 0) add("${amount(s.skr)} SKR")
+    }
+    val list = when (parts.size) {
+        0 -> return ""
+        1 -> parts[0]
+        else -> parts.dropLast(1).joinToString(", ") + " and " + parts.last()
+    }
+    return "Welcome gift: $list of $cluster test funds are in your wallet. Check in somewhere and send a tip."
 }

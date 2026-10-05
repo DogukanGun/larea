@@ -14,4 +14,5 @@ export class DisabledSolanaClient implements SolanaClient {
   submit = (): Promise<string> => off();
   confirm = (): Promise<Confirmation> => off();
   assetsByOwner = (): Promise<string[] | null> => Promise.resolve(null);
+  sendStarterFunds = (): Promise<string | null> => Promise.resolve(null);
 }

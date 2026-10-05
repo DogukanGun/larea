@@ -7,6 +7,7 @@ import {
   type PreparedTransaction,
   type SolanaClient,
   type StampMintInput,
+  type StarterFunds,
   TransactionMismatchError,
   type TransferInput,
   type WalletBalances,
@@ -115,5 +116,21 @@ export class FakeSolanaClient implements SolanaClient {
 
   assetsByOwner(owner: string): Promise<string[] | null> {
     return Promise.resolve(this.das ? (this.das.get(owner) ?? []) : null);
+  }
+
+  /** Starter funds handed out, in order. */
+  readonly starterSent: { to: string; sol: number; usdc: string; skr: string }[] = [];
+  /** Makes the next starter transfer fail (an empty authority wallet, an RPC outage). */
+  failStarter = false;
+
+  sendStarterFunds(to: string, funds: StarterFunds): Promise<string | null> {
+    if (this.failStarter) {
+      this.failStarter = false;
+      return Promise.reject(new Error('starter funds failed'));
+    }
+    const current = this.wallets.get(to) ?? { sol: 0, usdc: 0, skr: 0 };
+    this.wallets.set(to, { sol: current.sol + funds.sol, usdc: current.usdc + Number(funds.usdc) / 1e6, skr: current.skr + Number(funds.skr) / 1e6 });
+    this.starterSent.push({ to, sol: funds.sol, usdc: funds.usdc.toString(), skr: funds.skr.toString() });
+    return Promise.resolve(bs58.encode(randomBytes(64)));
   }
 }

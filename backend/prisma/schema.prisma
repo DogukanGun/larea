@@ -628,9 +628,11 @@ model StripeEvent {
 
 /// The Solana wallet a user linked by signing in with it (dApp Store build). One per account and per address.
 model Wallet {
-  userId   String   @id
-  address  String   @unique
-  linkedAt DateTime @default(now())
+  userId          String    @id
+  address         String    @unique
+  linkedAt        DateTime  @default(now())
+  /// When devnet/localnet starter funds were sent to this address (once per wallet).
+  starterFundedAt DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

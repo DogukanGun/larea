@@ -45,6 +45,7 @@ Stamps are soulbound: the collections have the `BubblegumV2` plugin plus a perma
 | `SOLANA_METADATA_URL` | Public base for NFT metadata; defaults to `${PUBLIC_URL}/solana/metadata`. |
 | `LOYALTY_LEVELS` | Stamps for Regular, Local and Legend (default `5,15,40`). |
 | `SKR_LEVEL_REWARD` | SKR per level reached (default 5, 0 = off). |
+| `SOLANA_STARTER_SOL` / `SOLANA_STARTER_USDC` / `SOLANA_STARTER_SKR` | Starter funds a freshly linked wallet receives once, on localnet and devnet only (defaults 0.05 SOL, 20 USDC, 20 SKR; 0 switches each off). The authority wallet pays the SOL and mints the test tokens, so keep it funded. |
 | `SOLANA_PENDING_TTL_SEC` | How long a prepared transaction may take to be signed (default 600). |
 
 ## Local setup

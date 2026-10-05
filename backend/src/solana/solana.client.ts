@@ -79,6 +79,19 @@ export interface SolanaClient {
   confirm(signature: string, expectedMessageHash: string): Promise<Confirmation>;
   /** Compressed NFT ids the owner holds according to a DAS indexer; null when none is configured. */
   assetsByOwner(owner: string): Promise<string[] | null>;
+  /**
+   * Sends SOL from the authority and mints test USDC/SKR to `to` (the authority is the mint authority
+   * of the test mints). Resolves with the signature, or null on mainnet, where there are no test funds.
+   */
+  sendStarterFunds(to: string, funds: StarterFunds): Promise<string | null>;
+}
+
+/** Test funds a freshly linked wallet receives on localnet/devnet so it can pay fees and try tips. */
+export interface StarterFunds {
+  sol: number;
+  /** Base units (6 decimals). */
+  usdc: bigint;
+  skr: bigint;
 }
 
 export const SOLANA_CLIENT = Symbol('SOLANA_CLIENT');

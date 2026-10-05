@@ -24,8 +24,12 @@ data class SiwsChallenge(
 @Serializable
 data class LinkWalletRequest(val address: String, val message: String, val signature: String)
 
+/** Test funds the backend sent to a freshly linked wallet (localnet/devnet only). */
 @Serializable
-data class WalletView(val address: String, val linkedAt: String = "", val cluster: String = "devnet")
+data class StarterSummary(val sol: Double = 0.0, val usdc: Double = 0.0, val skr: Double = 0.0)
+
+@Serializable
+data class WalletView(val address: String, val linkedAt: String = "", val cluster: String = "devnet", val starter: StarterSummary? = null)
 
 @Serializable
 data class WalletBalances(val sol: Double = 0.0, val usdc: Double = 0.0, val skr: Double = 0.0)
