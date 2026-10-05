@@ -2,6 +2,7 @@ package com.larea.app.solana
 
 import android.net.Uri
 import androidx.activity.ComponentActivity
+import com.larea.app.Backend
 import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
 import com.solana.mobilewalletadapter.clientlib.ConnectionIdentity
 import com.solana.mobilewalletadapter.clientlib.MobileWalletAdapter
@@ -21,9 +22,11 @@ class WalletException(message: String) : Exception(message)
  */
 @Singleton
 class WalletAdapter @Inject constructor() {
+    // The identity must match the backend the app talks to: wallets check the Sign In With Solana
+    // domain against it, and the backend signs its challenge with its own PUBLIC_URL host.
     private val adapter = MobileWalletAdapter(
         connectionIdentity = ConnectionIdentity(
-            identityUri = Uri.parse("https://larea.dogukangundogan.com"),
+            identityUri = Uri.parse(Backend.baseUrl.trimEnd('/')),
             iconUri = Uri.parse("favicon.ico"),
             identityName = "Larea",
         ),
@@ -52,7 +55,7 @@ class WalletAdapter @Inject constructor() {
         return when (result) {
             is TransactionResult.Success -> result.authResult.signInResult ?: throw WalletException("The wallet did not sign in.")
             is TransactionResult.NoWalletFound -> throw WalletException(NO_WALLET)
-            is TransactionResult.Failure -> throw WalletException(result.e.message ?: "The wallet refused.")
+            is TransactionResult.Failure -> throw WalletException(describe(result.e))
         }
     }
 
@@ -64,8 +67,16 @@ class WalletAdapter @Inject constructor() {
         return when (result) {
             is TransactionResult.Success -> result.payload
             is TransactionResult.NoWalletFound -> throw WalletException(NO_WALLET)
-            is TransactionResult.Failure -> throw WalletException(result.e.message ?: "The wallet refused.")
+            is TransactionResult.Failure -> throw WalletException(describe(result.e))
         }
+    }
+
+    /** Plain words for the wallet's failure, instead of an exception class name on screen. */
+    private fun describe(e: Throwable): String = when {
+        e is java.util.concurrent.TimeoutException || e.cause is java.util.concurrent.TimeoutException ->
+            "The wallet didn't answer in time. Open it, approve the request, and try again."
+        e is java.util.concurrent.CancellationException -> "The wallet request was cancelled."
+        else -> e.message?.takeIf { it.isNotBlank() && !it.contains("Exception") } ?: "The wallet refused the request. Please try again."
     }
 
     fun forget() {
