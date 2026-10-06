@@ -10,6 +10,8 @@ enum class AppTab { Nearby, Market, Deals, Profile }
 @Serializable data object NearbyGraph
 @Serializable data object NearbyHome
 @Serializable data object ChatRoute
+/** A message pin and the chat under it. */
+@Serializable data class NearbyPin(val id: String)
 
 @Serializable data object MarketGraph
 @Serializable data object MarketHome

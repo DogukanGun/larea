@@ -63,6 +63,8 @@ class AppRouter @Inject constructor() {
         _requests.tryEmit(NavRequest.ShowChat)
     }
 
+    fun openPin(pinId: String) = open(AppTab.Nearby, NearbyPin(pinId))
+
     /** Brings a live chat back on screen after the user switched tabs. */
     fun showActiveChat() {
         if (_activeChat.value == null) return

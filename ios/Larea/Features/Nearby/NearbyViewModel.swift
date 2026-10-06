@@ -36,6 +36,9 @@ final class NearbyViewModel {
     var discovering = false
     var attribution = "Place data © OpenStreetMap contributors"
     var selectedId: String?
+    /// Paid message pins in the viewport (when the server offers them).
+    var pins: [MessagePin] = []
+    var pinsEnabled = false
     /// Where the map is looking; nil until the map reports its first camera position.
     private(set) var viewport: Viewport?
 
@@ -125,6 +128,10 @@ final class NearbyViewModel {
                 URLQueryItem(name: "viewRadiusM", value: String(Int(view.radiusM.rounded()))),
             ]
         }
+        if pinsEnabled {
+            // Pins are a bonus layer: a failure here never hides the places.
+            if let response: PinsResponse = try? await api.send(APIRequest(.GET, "pins/nearby", query: query)) { pins = response.pins }
+        }
         do {
             let response: NearbyResponse = try await api.send(APIRequest(.GET, "venues/nearby", query: query))
             venues = response.venues
@@ -140,6 +147,12 @@ final class NearbyViewModel {
         }
         locating = false
         loading = false
+    }
+
+    /// Puts a pin that just went live on the map without waiting for the next refresh.
+    func add(_ pin: MessagePin) {
+        pins.removeAll { $0.id == pin.id }
+        pins.insert(pin, at: 0)
     }
 
     /// The server decides; a refusal comes back with its own message ("You need to be closer…").

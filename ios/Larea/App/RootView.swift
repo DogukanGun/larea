@@ -70,6 +70,7 @@ struct MainFlowView: View {
         .environment(router)
         .task {
             env.realtime.connect()
+            env.pins.start()
             router.drainPending()
             if deals == nil {
                 let model = DealsViewModel(api: env.api, realtime: env.realtime)
@@ -79,6 +80,7 @@ struct MainFlowView: View {
         }
         .onDisappear {
             deals?.stop()
+            env.pins.stop()
             env.realtime.disconnect()
             router.reset()
         }
@@ -105,6 +107,8 @@ private struct NearbyTab: View {
                     } else {
                         ProgressView().onAppear { router.endChat() }
                     }
+                case let .pin(pinId):
+                    PinChatView(pinId: pinId)
                 }
             }
         }

@@ -41,3 +41,35 @@ export class ListingReportsController {
     return this.reports.createForListing(user.id, listingId, dto);
   }
 }
+
+@ApiTags('pins')
+@ApiBearerAuth()
+@Controller('pins/:id/reports')
+@UseGuards(JwtAuthGuard, NotSuspendedGuard, AgeVerifiedGuard, RateLimitGuard)
+export class PinReportsController {
+  constructor(private readonly reports: ReportsService) {}
+
+  @Post()
+  @HttpCode(200)
+  @RateLimit({ limit: 20, windowSec: 3600 })
+  @ApiOperation({ summary: 'Report a pinned message for moderator review' })
+  create(@CurrentUser() user: UserSnapshot, @Param('id') pinId: string, @Body() dto: CreateReportDto): Promise<ReportResult> {
+    return this.reports.createForPin(user.id, pinId, dto);
+  }
+}
+
+@ApiTags('pins')
+@ApiBearerAuth()
+@Controller('pin-messages/:id/reports')
+@UseGuards(JwtAuthGuard, NotSuspendedGuard, AgeVerifiedGuard, RateLimitGuard)
+export class PinMessageReportsController {
+  constructor(private readonly reports: ReportsService) {}
+
+  @Post()
+  @HttpCode(200)
+  @RateLimit({ limit: 20, windowSec: 3600 })
+  @ApiOperation({ summary: "Report a message in a pin's chat for moderator review" })
+  create(@CurrentUser() user: UserSnapshot, @Param('id') messageId: string, @Body() dto: CreateReportDto): Promise<ReportResult> {
+    return this.reports.createForPinMessage(user.id, messageId, dto);
+  }
+}

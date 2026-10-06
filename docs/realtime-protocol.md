@@ -26,6 +26,8 @@ Every message may carry a `reqId` (string, ≤ 64 chars); the server answers wit
 {"type":"leave","reqId":"2","venueId":"<venue id>"}
 {"type":"heartbeat","reqId":"3","venueId":"<venue id>","lat":52.5219,"lng":13.4132,"accuracy":12,"mocked":false}
 {"type":"ping","reqId":"4"}
+{"type":"pin_subscribe","reqId":"5","pinId":"<pin id>","lat":52.5219,"lng":13.4132,"accuracy":12,"mocked":false}
+{"type":"pin_unsubscribe","reqId":"6","pinId":"<pin id>"}
 ```
 
 - `join` subscribes this socket to the venue room. It requires an ACTIVE membership created with `POST /venues/:id/join` first. Ack: `{ok:true, data:{membershipId, memberCount, timing}}` or `{ok:false, reason:"not_member"}` → run the REST join again with a fresh fix.
@@ -37,6 +39,8 @@ Every message may carry a `reqId` (string, ≤ 64 chars); the server answers wit
   - `{ok:false, reason:"not_member"}` – you are no longer a member; rejoin via REST when back in range.
 - `leave` ends the membership and unsubscribes the socket.
 - `ping` → `pong`.
+- `pin_subscribe` follows a message pin's chat. A socket can follow any number of pins. The rules are the same as reading over REST: the pin is live, you are not banned, and the fix is within `PIN_CHAT_RADIUS_M` of the pin (the owner needs no fix). Ack `{ok:true}`, or `{ok:false, reason}` with `pin_too_far`, `pin_banned`, `pin_closed`, `not_found`, or a fix error (`mock_location`, `implausible_movement`, `location_imprecise`).
+- `pin_unsubscribe` stops following.
 
 Coordinates sent in heartbeats are used for the eligibility check only. They are never stored in the database, never logged, and never shown to other users.
 
@@ -54,6 +58,10 @@ Coordinates sent in heartbeats are used for the eligibility check only. They are
 {"type":"removed","venueId":"…","reason":"out_of_range","message":"You're no longer near this location. You've been removed from the chat."}
 {"type":"enforcement","kind":"mute","until":"2026-09-06T22:00:00.000Z","message":"…"}
 {"type":"presence","venueId":"…","count":7}
+{"type":"pin_message","message":{"id":"…","pinId":"…","author":{"id":"…","displayName":"anna_k"},"text":"I saw a grey cat by the school","status":"APPROVED","createdAt":"…"}}
+{"type":"pin_message_hidden","pinId":"…","messageId":"…"}
+{"type":"pin_updated","pinId":"…","text":"Board games moved to 8pm","editedAt":"…"}
+{"type":"pin_closed","pinId":"…","reason":"expired","message":"This pin has expired."}
 {"type":"pong","reqId":"4"}
 {"type":"error","reqId":"3","code":"BAD_MESSAGE","message":"…"}
 ```
@@ -72,6 +80,16 @@ Coordinates sent in heartbeats are used for the eligibility check only. They are
 
 Messages from users you blocked, or who blocked you, are never delivered to you (filtered server-side).
 Messages are sent over REST (`POST /venues/:id/messages`) so the moderation verdict comes back synchronously; approved messages then arrive on this socket for everyone in the room, including the sender.
+
+### Message pins
+
+Pin chats work like venue chats. Messages are sent over REST (`POST /pins/:id/messages`), and approved ones arrive as `pin_message` for everyone following the pin. `pin_closed.reason` is one of:
+
+- `expired`: the pin's time ran out.
+- `removed`: a moderator, reports or a store refund took it down.
+- `banned`: the owner removed you; only you get this one.
+
+In every case the socket stops following the pin. Leave the pin chat screen.
 
 ### Message kinds
 

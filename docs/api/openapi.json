@@ -515,6 +515,656 @@
         ]
       }
     },
+    "/pins/quote": {
+      "post": {
+        "operationId": "PinsController_quote",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuotePinDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Price a message pin and create it unpaid; the text is moderated before anyone pays",
+        "tags": [
+          "pins"
+        ]
+      }
+    },
+    "/pins/{id}/purchase": {
+      "post": {
+        "operationId": "PinsController_purchase",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasePinDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Activate a pin with an App Store or Google Play purchase (idempotent per transaction)",
+        "tags": [
+          "pins"
+        ]
+      }
+    },
+    "/pins/{id}/solana/pay": {
+      "post": {
+        "operationId": "PinsController_solanaPay",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "dApp Store build: build the USDC payment for a pin, to sign with Mobile Wallet Adapter",
+        "tags": [
+          "pins"
+        ]
+      }
+    },
+    "/pins/{id}/solana/submit": {
+      "post": {
+        "operationId": "PinsController_solanaSubmit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitPinPaymentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "dApp Store build: send the signed USDC payment; the pin goes live once it confirms",
+        "tags": [
+          "pins"
+        ]
+      }
+    },
+    "/pins/nearby": {
+      "get": {
+        "operationId": "PinsController_nearby",
+        "parameters": [
+          {
+            "name": "lat",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": 52.5219,
+              "type": "number"
+            }
+          },
+          {
+            "name": "lng",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": 13.4132,
+              "type": "number"
+            }
+          },
+          {
+            "name": "accuracy",
+            "required": true,
+            "in": "query",
+            "description": "Horizontal accuracy radius in metres (68% confidence)",
+            "schema": {
+              "example": 12,
+              "type": "number"
+            }
+          },
+          {
+            "name": "mocked",
+            "required": false,
+            "in": "query",
+            "description": "True when the OS reports a mock/simulated location",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "viewLat",
+            "required": false,
+            "in": "query",
+            "description": "Latitude of the map viewport centre; defaults to the fix",
+            "schema": {
+              "example": 48.1374,
+              "type": "number"
+            }
+          },
+          {
+            "name": "viewLng",
+            "required": false,
+            "in": "query",
+            "description": "Longitude of the map viewport centre; defaults to the fix",
+            "schema": {
+              "example": 11.5755,
+              "type": "number"
+            }
+          },
+          {
+            "name": "viewRadiusM",
+            "required": false,
+            "in": "query",
+            "description": "Half the visible map width in metres; capped at DISCOVERY_MAX_RADIUS_M. Cafés are only included up to DISCOVERY_RADIUS_M.",
+            "schema": {
+              "example": 1500,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Live pins in the map viewport, with distance and whether their chat can be opened from the fix",
+        "tags": [
+          "pins"
+        ]
+      }
+    },
+    "/pins/mine": {
+      "get": {
+        "operationId": "PinsController_mine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The caller's pins, including unpaid ones",
+        "tags": [
+          "pins"
+        ]
+      }
+    },
+    "/pins/{id}": {
+      "get": {
+        "operationId": "PinsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lat",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "lng",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "accuracy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "mocked",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "afterId",
+            "required": false,
+            "in": "query",
+            "description": "Return messages newer than this message id (gap fill after reconnect)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "One pin; pass the fix as lat/lng/accuracy to get distance and eligibility",
+        "tags": [
+          "pins"
+        ]
+      },
+      "patch": {
+        "operationId": "PinsController_edit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PinTextDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner: change the pinned text (moderated again)",
+        "tags": [
+          "pins"
+        ]
+      }
+    },
+    "/pins/{id}/messages": {
+      "get": {
+        "operationId": "PinsController_history",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lat",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "lng",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "accuracy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "mocked",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "afterId",
+            "required": false,
+            "in": "query",
+            "description": "Return messages newer than this message id (gap fill after reconnect)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The pin's chat, oldest first; needs a fix near the pin unless you own it",
+        "tags": [
+          "pins"
+        ]
+      },
+      "post": {
+        "operationId": "PinsController_send",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendPinMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Write in the pin's chat; moderated before anyone sees it",
+        "tags": [
+          "pins"
+        ]
+      }
+    },
+    "/pins/{id}/messages/{messageId}/hide": {
+      "post": {
+        "operationId": "PinsController_hide",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner: hide a message in the chat",
+        "tags": [
+          "pins"
+        ]
+      }
+    },
+    "/pins/{id}/bans": {
+      "get": {
+        "operationId": "PinsController_bans",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner: people removed from the chat",
+        "tags": [
+          "pins"
+        ]
+      },
+      "post": {
+        "operationId": "PinsController_ban",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BanUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner: remove someone from the chat; they cannot come back",
+        "tags": [
+          "pins"
+        ]
+      }
+    },
+    "/pins/{id}/bans/{userId}": {
+      "delete": {
+        "operationId": "PinsController_unban",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner: let someone back in",
+        "tags": [
+          "pins"
+        ]
+      }
+    },
+    "/admin/pins/{id}/remove": {
+      "post": {
+        "operationId": "PinsAdminController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Take a pin off the map",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/solana/wallet/challenge": {
       "post": {
         "operationId": "WalletController_challenge",
@@ -2289,6 +2939,84 @@
         ]
       }
     },
+    "/pins/{id}/reports": {
+      "post": {
+        "operationId": "PinReportsController_create",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Report a pinned message for moderator review",
+        "tags": [
+          "pins"
+        ]
+      }
+    },
+    "/pin-messages/{id}/reports": {
+      "post": {
+        "operationId": "PinMessageReportsController_create",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Report a message in a pin's chat for moderator review",
+        "tags": [
+          "pins"
+        ]
+      }
+    },
     "/admin/reports": {
       "get": {
         "operationId": "AdminController_reports",
@@ -2755,6 +3483,127 @@
           "lat",
           "lng",
           "accuracy"
+        ]
+      },
+      "QuotePinDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 500,
+            "example": "Free concert at the fountain tonight, 8pm!"
+          },
+          "lat": {
+            "type": "number",
+            "description": "Where to pin the message",
+            "example": 48.1374
+          },
+          "lng": {
+            "type": "number",
+            "example": 11.5755
+          },
+          "fix": {
+            "description": "The buyer's own position; it decides the price tier",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LocationFixDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "text",
+          "lat",
+          "lng",
+          "fix"
+        ]
+      },
+      "PurchasePinDto": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": [
+              "apple",
+              "google"
+            ]
+          },
+          "signedTransaction": {
+            "type": "string",
+            "description": "apple: StoreKit 2 Transaction.jwsRepresentation (appAccountToken = the pin's id)"
+          },
+          "productId": {
+            "type": "string",
+            "description": "google: the product id bought"
+          },
+          "purchaseToken": {
+            "type": "string",
+            "description": "google: Purchase.purchaseToken (obfuscatedProfileId = the pin's id)"
+          }
+        },
+        "required": [
+          "platform"
+        ]
+      },
+      "SubmitPinPaymentDto": {
+        "type": "object",
+        "properties": {
+          "signedTransaction": {
+            "type": "string",
+            "description": "The base64 transaction after the wallet signed it"
+          }
+        },
+        "required": [
+          "signedTransaction"
+        ]
+      },
+      "PinTextDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 500,
+            "example": "Free concert at the fountain tonight, 8pm!"
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "SendPinMessageDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "clientKey": {
+            "type": "string",
+            "description": "Client-generated idempotency key; resending with the same key returns the original result"
+          },
+          "fix": {
+            "description": "Where the sender is; required unless they own the pin",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LocationFixDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "text",
+          "clientKey"
+        ]
+      },
+      "BanUserDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId"
         ]
       },
       "LinkWalletDto": {

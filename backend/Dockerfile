@@ -18,6 +18,8 @@ ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
+# Apple's root certificates, for verifying App Store purchases.
+COPY certs ./certs
 COPY --from=build /app/prisma.config.ts /app/package.json ./
 COPY docker/entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh && adduser -D -u 10001 app && chown -R app /app \

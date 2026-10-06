@@ -1,0 +1,78 @@
+{
+  "identifier": "5E1A2B7C",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "3.99",
+      "familyShareable": false,
+      "internalID": "6740000001",
+      "localizations": [
+        {
+          "description": "Pin a message within 1 km of you for 24 hours, with its own chat.",
+          "displayName": "Pin a message nearby",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.dogukangundogan.larea.pin.nearby",
+      "referenceName": "Pin a message nearby",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "10.99",
+      "familyShareable": false,
+      "internalID": "6740000002",
+      "localizations": [
+        {
+          "description": "Pin a message anywhere in your city for 3 days, with its own chat.",
+          "displayName": "Pin a message in your city",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.dogukangundogan.larea.pin.city",
+      "referenceName": "Pin a message in your city",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "29.99",
+      "familyShareable": false,
+      "internalID": "6740000003",
+      "localizations": [
+        {
+          "description": "Pin a message anywhere in your country for 3 days, with its own chat.",
+          "displayName": "Pin a message in your country",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.dogukangundogan.larea.pin.country",
+      "referenceName": "Pin a message in your country",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "39.99",
+      "familyShareable": false,
+      "internalID": "6740000004",
+      "localizations": [
+        {
+          "description": "Pin a message anywhere in the world for 7 days, with its own chat.",
+          "displayName": "Pin a message abroad",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.dogukangundogan.larea.pin.world",
+      "referenceName": "Pin a message abroad",
+      "type": "Consumable"
+    }
+  ],
+  "settings": {
+    "_developerTeamID": "8HZ7L8U8KY",
+    "_failTransactionsEnabled": false,
+    "_locale": "en_US",
+    "_storefront": "USA",
+    "_storeKitErrors": []
+  },
+  "subscriptionGroups": [],
+  "version": {
+    "major": 4,
+    "minor": 0
+  }
+}

@@ -72,7 +72,7 @@ describe('reports, moderator actions and retention', () => {
     expect(denied.body.code).toBe('FORBIDDEN');
 
     const queue = await ctx.http().get('/admin/reports').set(auth(moderator)).expect(200);
-    const entry = queue.body.find((r: { message: { id: string } }) => r.message.id === message.id);
+    const entry = queue.body.find((r: { message: { id: string } | null }) => r.message?.id === message.id);
     expect(entry).toMatchObject({ status: 'OPEN', reason: 'SCAM', reportedUser: { id: author.id } });
 
     const full = await ctx.http().get(`/admin/messages/${message.id}`).set(auth(moderator)).expect(200);

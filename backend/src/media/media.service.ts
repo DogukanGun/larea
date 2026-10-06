@@ -122,7 +122,8 @@ export class MediaService {
 
   /**
    * Uploads nobody attached within MEDIA_ORPHAN_TTL_MIN, attached media whose parent is gone,
-   * and old rejected/quarantined records.
+   * and old rejected/quarantined records. A parent is a message or a listing; closed listings
+   * purge their own photos (ListingsService.purgeClosed).
    */
   async sweepOrphans(now = new Date()): Promise<number> {
     const orphanCutoff = new Date(now.getTime() - this.env.MEDIA_ORPHAN_TTL_MIN * 60_000);
@@ -130,6 +131,7 @@ export class MediaService {
     const rows = await this.prisma.media.findMany({
       where: {
         message: null,
+        listingImages: { none: {} },
         OR: [
           { status: 'UPLOADED', createdAt: { lt: orphanCutoff } },
           { status: 'ATTACHED' },

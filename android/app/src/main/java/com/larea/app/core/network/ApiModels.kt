@@ -28,6 +28,8 @@ data class Features(
     val market: Boolean = false,
     val payments: Boolean = false,
     val solana: Boolean = false,
+    /** Paid message pins on the map. */
+    val pins: Boolean = false,
 ) {
     companion object {
         val None = Features()

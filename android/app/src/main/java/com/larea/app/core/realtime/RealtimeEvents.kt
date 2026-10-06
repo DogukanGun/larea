@@ -1,6 +1,7 @@
 package com.larea.app.core.realtime
 
 import com.larea.app.core.network.ChatMessage
+import com.larea.app.core.network.PinMessage
 import com.larea.app.core.network.PollView
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -41,6 +42,23 @@ sealed class ServerEvent {
     @Serializable
     @SerialName("market_update")
     data class MarketUpdate(val kind: String, val listingId: String, val offerId: String? = null, val orderId: String? = null) : ServerEvent()
+
+    @Serializable
+    @SerialName("pin_message")
+    data class PinMessageEvent(val message: PinMessage) : ServerEvent()
+
+    @Serializable
+    @SerialName("pin_message_hidden")
+    data class PinMessageHidden(val pinId: String, val messageId: String) : ServerEvent()
+
+    @Serializable
+    @SerialName("pin_updated")
+    data class PinUpdated(val pinId: String, val text: String, val editedAt: String) : ServerEvent()
+
+    /** The pin expired, was removed, or its owner removed you; stop following it. */
+    @Serializable
+    @SerialName("pin_closed")
+    data class PinClosed(val pinId: String, val reason: String, val message: String) : ServerEvent()
 
     @Serializable
     @SerialName("pong")

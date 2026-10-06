@@ -8,14 +8,17 @@ export interface ClientConnection {
   build?: string;
   socket: WebSocket;
   venueIds: Set<string>;
+  /** Pin chats this socket follows (any number, unlike venues). */
+  pinIds: Set<string>;
   alive: boolean;
 }
 
-/** In-memory index of this instance's sockets by user and by venue room. */
+/** In-memory index of this instance's sockets by user, by venue room and by pin chat. */
 @Injectable()
 export class ConnectionRegistry {
   private readonly byUser = new Map<string, Set<ClientConnection>>();
   private readonly byVenue = new Map<string, Set<ClientConnection>>();
+  private readonly byPin = new Map<string, Set<ClientConnection>>();
   private readonly all = new Set<ClientConnection>();
 
   add(conn: ClientConnection): void {
@@ -28,6 +31,8 @@ export class ConnectionRegistry {
     this.unindex(this.byUser, conn.userId, conn);
     for (const venueId of conn.venueIds) this.unindex(this.byVenue, venueId, conn);
     conn.venueIds.clear();
+    for (const pinId of conn.pinIds) this.unindex(this.byPin, pinId, conn);
+    conn.pinIds.clear();
   }
 
   joinVenue(conn: ClientConnection, venueId: string): void {
@@ -38,6 +43,20 @@ export class ConnectionRegistry {
   leaveVenue(conn: ClientConnection, venueId: string): void {
     conn.venueIds.delete(venueId);
     this.unindex(this.byVenue, venueId, conn);
+  }
+
+  joinPin(conn: ClientConnection, pinId: string): void {
+    conn.pinIds.add(pinId);
+    this.index(this.byPin, pinId, conn);
+  }
+
+  leavePin(conn: ClientConnection, pinId: string): void {
+    conn.pinIds.delete(pinId);
+    this.unindex(this.byPin, pinId, conn);
+  }
+
+  forPin(pinId: string): ClientConnection[] {
+    return [...(this.byPin.get(pinId) ?? [])];
   }
 
   forUser(userId: string): ClientConnection[] {

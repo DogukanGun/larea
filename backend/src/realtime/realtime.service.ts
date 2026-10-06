@@ -5,6 +5,7 @@ import { Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy }
 import { HttpAdapterHost } from '@nestjs/core';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { TokenService } from '../auth/token.service.js';
+import { PinsService } from '../pins/pins.service.js';
 import { PresenceService } from '../presence/presence.service.js';
 import { UsersService } from '../users/users.service.js';
 import { VenuesService } from '../venues/venues.service.js';
@@ -32,6 +33,7 @@ export class RealtimeService implements OnApplicationBootstrap, OnModuleDestroy 
     private readonly presence: PresenceService,
     private readonly venues: VenuesService,
     private readonly registry: ConnectionRegistry,
+    private readonly pins: PinsService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -79,7 +81,7 @@ export class RealtimeService implements OnApplicationBootstrap, OnModuleDestroy 
   }
 
   private onConnection(socket: WebSocket, userId: string, build?: string): void {
-    const conn: ClientConnection = { id: randomUUID(), userId, build, socket, venueIds: new Set(), alive: true };
+    const conn: ClientConnection = { id: randomUUID(), userId, build, socket, venueIds: new Set(), pinIds: new Set(), alive: true };
     this.registry.add(conn);
     socket.on('pong', () => (conn.alive = true));
     socket.on('message', (data) => void this.onMessage(conn, data.toString()));
@@ -127,6 +129,16 @@ export class RealtimeService implements OnApplicationBootstrap, OnModuleDestroy 
         this.registry.leaveVenue(conn, msg.venueId);
         const left = await this.presence.leave(conn.userId, msg.venueId);
         return this.send(conn, { type: 'ack', reqId: msg.reqId, ok: true, data: { left } });
+      }
+      case 'pin_subscribe': {
+        const result = await this.pins.canFollow(conn.userId, msg.pinId, msg);
+        if (!result.ok) return this.send(conn, { type: 'ack', reqId: msg.reqId, ok: false, reason: result.reason });
+        this.registry.joinPin(conn, msg.pinId);
+        return this.send(conn, { type: 'ack', reqId: msg.reqId, ok: true });
+      }
+      case 'pin_unsubscribe': {
+        this.registry.leavePin(conn, msg.pinId);
+        return this.send(conn, { type: 'ack', reqId: msg.reqId, ok: true });
       }
       case 'heartbeat': {
         const result = await this.presence.heartbeat(conn.userId, msg.venueId, msg);

@@ -20,6 +20,7 @@ struct Features: Codable, Sendable, Equatable {
     var polls = false
     var market = false
     var payments = false
+    var pins = false
 
     static let none = Features()
 }
@@ -41,7 +42,7 @@ struct MeView: Codable, Sendable, Equatable {
 }
 
 extension Features {
-    private enum Keys: String, CodingKey { case images, polls, market, payments }
+    private enum Keys: String, CodingKey { case images, polls, market, payments, pins }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
@@ -49,6 +50,7 @@ extension Features {
         polls = try c.decodeIfPresent(Bool.self, forKey: .polls) ?? false
         market = try c.decodeIfPresent(Bool.self, forKey: .market) ?? false
         payments = try c.decodeIfPresent(Bool.self, forKey: .payments) ?? false
+        pins = try c.decodeIfPresent(Bool.self, forKey: .pins) ?? false
     }
 }
 

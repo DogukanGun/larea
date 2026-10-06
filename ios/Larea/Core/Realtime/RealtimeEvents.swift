@@ -17,13 +17,17 @@ enum ServerEvent: Sendable, Equatable {
     case presence(venueId: String, count: Int)
     case pollUpdate(venueId: String, messageId: String, poll: PollView)
     case marketUpdate(kind: String, listingId: String, offerId: String?, orderId: String?)
+    case pinMessage(PinMessage)
+    case pinMessageHidden(pinId: String, messageId: String)
+    case pinUpdated(pinId: String, text: String, editedAt: String)
+    case pinClosed(pinId: String, reason: String, message: String)
     case pong(reqId: String?)
     case error(reqId: String?, code: String, message: String)
 }
 
 extension ServerEvent: Decodable {
     private enum Keys: String, CodingKey {
-        case type, reqId, ok, reason, data, message, venueId, messageId, kind, until, count, code, poll, listingId, offerId, orderId
+        case type, reqId, ok, reason, data, message, venueId, messageId, kind, until, count, code, poll, listingId, offerId, orderId, pinId, text, editedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -67,6 +71,14 @@ extension ServerEvent: Decodable {
                 offerId: try c.decodeIfPresent(String.self, forKey: .offerId),
                 orderId: try c.decodeIfPresent(String.self, forKey: .orderId)
             )
+        case "pin_message":
+            self = .pinMessage(try c.decode(PinMessage.self, forKey: .message))
+        case "pin_message_hidden":
+            self = .pinMessageHidden(pinId: try c.decode(String.self, forKey: .pinId), messageId: try c.decode(String.self, forKey: .messageId))
+        case "pin_updated":
+            self = .pinUpdated(pinId: try c.decode(String.self, forKey: .pinId), text: try c.decode(String.self, forKey: .text), editedAt: try c.decode(String.self, forKey: .editedAt))
+        case "pin_closed":
+            self = .pinClosed(pinId: try c.decode(String.self, forKey: .pinId), reason: try c.decode(String.self, forKey: .reason), message: try c.decode(String.self, forKey: .message))
         case "pong":
             self = .pong(reqId: try c.decodeIfPresent(String.self, forKey: .reqId))
         case "error":

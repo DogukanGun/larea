@@ -14,6 +14,7 @@ import { MarketModule } from './market/market.module.js';
 import { MediaModule } from './media/media.module.js';
 import { MessagesModule } from './messages/messages.module.js';
 import { ModerationModule } from './moderation/moderation.module.js';
+import { PinsModule } from './pins/pins.module.js';
 import { PollsModule } from './polls/polls.module.js';
 import { PresenceModule } from './presence/presence.module.js';
 import { RealtimeCoreModule } from './realtime/realtime.core.module.js';
@@ -47,6 +48,7 @@ import { VerificationModule } from './verification/verification.module.js';
     MarketModule,
     MessagesModule,
     PollsModule,
+    PinsModule,
     ReportsModule,
     AdminModule,
     RetentionModule,

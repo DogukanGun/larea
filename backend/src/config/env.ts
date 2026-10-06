@@ -123,6 +123,28 @@ export const envSchema = z
     /** A check-in transaction the wallet did not send within this window is given up. */
     SOLANA_PENDING_TTL_SEC: z.coerce.number().int().positive().default(600),
 
+    /** Paid message pins on the map (App Store / Play purchases, USDC on the dApp Store build). */
+    PINS_ENABLED: z.preprocess((v) => (v === undefined || v === '' ? undefined : bool(v)), z.boolean().default(true)),
+    /** A pin this close to the buyer is the cheapest (NEARBY) tier. */
+    PIN_NEARBY_RADIUS_M: z.coerce.number().positive().default(1000),
+    /** How close people must be to a pin to read and write in its chat (its owner is exempt). */
+    PIN_CHAT_RADIUS_M: z.coerce.number().positive().default(300),
+    /** Unpaid quotes are kept this long so a purchase that lands late still finds its pin. */
+    PIN_PENDING_TTL_DAYS: z.coerce.number().int().positive().default(7),
+    PIN_MAX_PER_MAP: z.coerce.number().int().positive().default(200),
+    /** Reverse geocoding for the city and country tiers (OpenStreetMap Nominatim; self-hostable). */
+    NOMINATIM_URL: z.url().default('https://nominatim.openstreetmap.org'),
+    /** App Store: the app's bundle id and Apple id (the numeric id is required to verify production purchases). */
+    APPLE_BUNDLE_ID: z.string().default('com.dogukangundogan.larea'),
+    APPLE_APP_ID: z.preprocess(emptyAsUnset, z.coerce.number().int().positive().optional()),
+    /** Development only: accept purchases signed by Xcode's local StoreKit configuration. */
+    APPLE_IAP_ALLOW_XCODE: z.preprocess(bool, z.boolean()).default(false),
+    /** Directory with Apple's root certificates (AppleRootCA-G2.cer, AppleRootCA-G3.cer). */
+    APPLE_ROOT_CERTS_DIR: z.string().default('./certs/apple'),
+    /** Google Play: package name and a service account key file with access to the Play Developer API. */
+    GOOGLE_PLAY_PACKAGE: z.string().default('com.dogukangundogan.larea'),
+    GOOGLE_PLAY_SERVICE_ACCOUNT_FILE: z.preprocess(emptyAsUnset, z.string().optional()),
+
     REPORT_AUTO_HIDE_THRESHOLD: z.coerce.number().int().positive().default(3),
     MESSAGE_RETENTION_DAYS: z.coerce.number().int().positive().default(7),
     MODERATION_RECORD_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
@@ -135,6 +157,7 @@ export const envSchema = z
     }
     if (env.NODE_ENV === 'production') {
       if (env.ALLOW_MOCK_LOCATIONS) ctx.addIssue({ code: 'custom', path: ['ALLOW_MOCK_LOCATIONS'], message: 'must be off in production' });
+      if (env.APPLE_IAP_ALLOW_XCODE) ctx.addIssue({ code: 'custom', path: ['APPLE_IAP_ALLOW_XCODE'], message: 'must be off in production' });
     }
     if (env.LEAVE_RADIUS_M < env.JOIN_RADIUS_M) {
       ctx.addIssue({ code: 'custom', path: ['LEAVE_RADIUS_M'], message: 'must be >= JOIN_RADIUS_M' });
@@ -169,16 +192,18 @@ export interface Features {
   payments: boolean;
   /** Solana features (stamps, tips, USDC market); only the dApp Store build uses them. */
   solana: boolean;
+  /** Paid message pins on the map. */
+  pins: boolean;
 }
 
 export function marketEnabled(env: Pick<Env, 'MARKET_ENABLED' | 'NODE_ENV'>): boolean {
   return env.MARKET_ENABLED ?? env.NODE_ENV !== 'production';
 }
 
-export function featuresOf(env: Pick<Env, 'MARKET_ENABLED' | 'MARKET_PAYMENTS_ENABLED' | 'NODE_ENV' | 'SOLANA_ENABLED'>): Features {
+export function featuresOf(env: Pick<Env, 'MARKET_ENABLED' | 'MARKET_PAYMENTS_ENABLED' | 'NODE_ENV' | 'SOLANA_ENABLED' | 'PINS_ENABLED'>): Features {
   const market = marketEnabled(env);
   // images and polls flip to true when their milestones ship; market/payments are configuration.
-  return { images: true, polls: true, market, payments: market && env.MARKET_PAYMENTS_ENABLED, solana: env.SOLANA_ENABLED };
+  return { images: true, polls: true, market, payments: market && env.MARKET_PAYMENTS_ENABLED, solana: env.SOLANA_ENABLED, pins: env.PINS_ENABLED };
 }
 
 /** Level thresholds (stamps on distinct days) for Regular, Local and Legend. */

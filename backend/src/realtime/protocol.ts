@@ -15,6 +15,16 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
     mocked: z.boolean().optional(),
   }),
   z.object({ type: z.literal('ping'), reqId: z.string().max(64).optional() }),
+  z.object({
+    type: z.literal('pin_subscribe'),
+    reqId: z.string().max(64).optional(),
+    pinId: z.string().min(1).max(64),
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
+    accuracy: z.number().min(0).max(100_000),
+    mocked: z.boolean().optional(),
+  }),
+  z.object({ type: z.literal('pin_unsubscribe'), reqId: z.string().max(64).optional(), pinId: z.string().min(1).max(64) }),
 ]);
 
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
@@ -92,6 +102,18 @@ export interface ChatMessageView {
   createdAt: string;
 }
 
+/** A message in a pin's chat. */
+export interface PinMessageView {
+  id: string;
+  pinId: string;
+  author: { id: string; displayName: string };
+  text: string;
+  status: 'APPROVED' | 'CENSORED';
+  createdAt: string;
+}
+
+export type PinClosedReason = 'expired' | 'removed' | 'banned';
+
 export type ServerEvent =
   | { type: 'ack'; reqId?: string; ok: boolean; reason?: string; data?: Record<string, unknown> }
   | { type: 'message'; message: ChatMessageView }
@@ -101,6 +123,10 @@ export type ServerEvent =
   | { type: 'presence'; venueId: string; count: number }
   | { type: 'poll_update'; venueId: string; messageId: string; poll: ChatPollView }
   | { type: 'market_update'; kind: MarketUpdateKind; listingId: string; offerId?: string; orderId?: string }
+  | { type: 'pin_message'; message: PinMessageView }
+  | { type: 'pin_message_hidden'; pinId: string; messageId: string }
+  | { type: 'pin_updated'; pinId: string; text: string; editedAt: string }
+  | { type: 'pin_closed'; pinId: string; reason: PinClosedReason; message: string }
   | { type: 'pong'; reqId?: string }
   | { type: 'error'; reqId?: string; code: string; message: string };
 

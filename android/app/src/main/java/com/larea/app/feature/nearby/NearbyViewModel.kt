@@ -6,6 +6,7 @@ import com.larea.app.core.location.Fix
 import com.larea.app.core.location.LocationSource
 import com.larea.app.core.network.LareaApi
 import com.larea.app.core.network.LocationFixBody
+import com.larea.app.core.network.MessagePin
 import com.larea.app.core.network.NearbyVenue
 import com.larea.app.core.network.apiCall
 import com.larea.app.core.network.userMessage
@@ -50,6 +51,8 @@ data class NearbyUiState(
     val selectedId: String? = null,
     val viewport: MapViewport? = null,
     val fix: Fix? = null,
+    /** Paid message pins in the viewport (when the server offers them). */
+    val pins: List<MessagePin> = emptyList(),
 ) {
     val selectedVenue: NearbyVenue? get() = venues.firstOrNull { it.id == selectedId }
 
@@ -89,6 +92,8 @@ class NearbyViewModel @Inject constructor(
     private var lastRefreshViewport: MapViewport? = null
     private var lastRefreshAt = 0L
     private var pendingPolls = 0
+    /** Set by the screen from the server's features. */
+    var pinsEnabled = false
 
     fun start() {
         fixes?.cancel()
@@ -148,6 +153,11 @@ class NearbyViewModel @Inject constructor(
         if (_state.value.loading) return
         _state.update { it.copy(loading = true, error = null) }
         val view = _state.value.viewport
+        if (pinsEnabled) {
+            // Pins are a bonus layer: a failure here never hides the places.
+            apiCall { api.pinsNearby(fix.lat, fix.lng, fix.accuracyM, view?.lat, view?.lng, view?.radiusM?.let { Math.round(it).toInt() }) }
+                .onSuccess { r -> _state.update { it.copy(pins = r.pins) } }
+        }
         apiCall { api.nearby(fix.lat, fix.lng, fix.accuracyM, view?.lat, view?.lng, view?.radiusM?.let { Math.round(it).toInt() }) }
             .onSuccess { response ->
                 _state.update { s ->
@@ -166,6 +176,9 @@ class NearbyViewModel @Inject constructor(
             .onFailure { e -> _state.update { it.copy(error = e.userMessage()) } }
         _state.update { it.copy(locating = false, loading = false) }
     }
+
+    /** Puts a pin that just went live on the map without waiting for the next refresh. */
+    fun add(pin: MessagePin) = _state.update { s -> s.copy(pins = listOf(pin) + s.pins.filterNot { it.id == pin.id }) }
 
     fun refreshNow() {
         viewModelScope.launch { refresh() }

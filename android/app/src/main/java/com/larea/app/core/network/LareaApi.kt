@@ -84,6 +84,30 @@ interface LareaApi {
     @POST("market/orders/{id}/approve") suspend fun approveOrder(@Path("id") id: String, @Body body: ApproveOrderRequest): Order
     @POST("market/orders/{id}/cancel") suspend fun cancelOrder(@Path("id") id: String): Order
 
+    // Message pins
+
+    @GET("pins/nearby")
+    suspend fun pinsNearby(
+        @Query("lat") lat: Double,
+        @Query("lng") lng: Double,
+        @Query("accuracy") accuracy: Double,
+        @Query("viewLat") viewLat: Double? = null,
+        @Query("viewLng") viewLng: Double? = null,
+        @Query("viewRadiusM") viewRadiusM: Int? = null,
+    ): PinsResponse
+
+    @POST("pins/quote") suspend fun quotePin(@Body body: PinQuoteRequest): PinQuote
+    @POST("pins/{id}/purchase") suspend fun purchasePin(@Path("id") id: String, @Body body: PinPurchaseRequest): MessagePin
+    @GET("pins/mine") suspend fun myPins(): PinsResponse
+    @GET("pins/{id}") suspend fun pin(@Path("id") id: String, @QueryMap fix: Map<String, String>): MessagePin
+    @PATCH("pins/{id}") suspend fun editPin(@Path("id") id: String, @Body body: PinTextRequest): MessagePin
+    @GET("pins/{id}/messages") suspend fun pinMessages(@Path("id") id: String, @QueryMap query: Map<String, String>): PinMessagesResponse
+    @POST("pins/{id}/messages") suspend fun sendPinMessage(@Path("id") id: String, @Body body: SendPinMessageRequest): PinSendResult
+    @POST("pins/{id}/messages/{messageId}/hide") suspend fun hidePinMessage(@Path("id") id: String, @Path("messageId") messageId: String)
+    @POST("pins/{id}/bans") suspend fun banFromPin(@Path("id") id: String, @Body body: BanUserRequest)
+    @POST("pins/{id}/reports") suspend fun reportPin(@Path("id") id: String, @Body body: CreateReportRequest)
+    @POST("pin-messages/{id}/reports") suspend fun reportPinMessage(@Path("id") id: String, @Body body: CreateReportRequest)
+
     @GET("market/stripe/account") suspend fun stripeAccount(@Query("refresh") refresh: Int? = null): StripeAccountStatus
     @POST("market/stripe/account-link") suspend fun stripeAccountLink(): StripeAccountLink
 }

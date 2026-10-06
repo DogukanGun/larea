@@ -89,6 +89,15 @@ final class RealtimeClient {
         )
     }
 
+    /// Follows a message pin's chat; the server checks the fix against the pin like it does over REST.
+    func subscribePin(pinId: String, lat: Double, lng: Double, accuracy: Double, mocked: Bool) async -> ServerEvent.Ack {
+        await request(["type": "pin_subscribe", "pinId": pinId, "lat": lat, "lng": lng, "accuracy": accuracy, "mocked": mocked])
+    }
+
+    func unsubscribePin(pinId: String) async {
+        _ = await request(["type": "pin_unsubscribe", "pinId": pinId])
+    }
+
     /// Waits until connected, or returns false after the timeout.
     func awaitConnected(timeout: Duration = .seconds(10)) async -> Bool {
         let deadline = ContinuousClock.now + timeout

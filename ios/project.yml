@@ -9,8 +9,9 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
-    MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    # Bump CURRENT_PROJECT_VERSION for every TestFlight upload (App Store Connect has 3).
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "4"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: 8HZ7L8U8KY  # personal Apple Developer account (Individual)
     ENABLE_USER_SCRIPT_SANDBOXING: YES
@@ -29,6 +30,11 @@ targets:
       path: Larea/Resources/Info.plist
       properties:
         CFBundleDisplayName: Larea
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # Only standard HTTPS/TLS: exempt from export documentation, so TestFlight builds are not
+        # held at "Missing Compliance" after every upload.
+        ITSAppUsesNonExemptEncryption: false
         UILaunchScreen:
           UIColorName: LaunchBackground
           UIImageName: LaunchLogo
@@ -49,6 +55,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dogukangundogan.larea
+        # iPhone only. The UI is portrait-only, and an iPad build must support every
+        # orientation for multitasking or App Store validation rejects the bundle.
+        TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: BrandPrimary
@@ -104,6 +113,8 @@ schemes:
         LareaUITests: [test]
     run:
       config: Debug
+      # Local App Store for message pins in the simulator (the backend needs APPLE_IAP_ALLOW_XCODE=1).
+      storeKitConfiguration: Larea.storekit
     test:
       config: Debug
       targets: [LareaTests]

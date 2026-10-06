@@ -21,8 +21,8 @@ import { VenuesService } from '../venues/venues.service.js';
 
 export const GUIDELINES_NOTICE = "This message doesn't meet our community guidelines.";
 export const PHOTO_GUIDELINES_NOTICE = "This photo doesn't meet our community guidelines.";
-const CENSOR_NOTICE = 'Part of your message was masked because it goes against the community guidelines.';
-const WARN_NOTICE = 'Please keep it respectful. Repeated issues can limit your ability to chat.';
+export const CENSOR_NOTICE = 'Part of your message was masked because it goes against the community guidelines.';
+export const WARN_NOTICE = 'Please keep it respectful. Repeated issues can limit your ability to chat.';
 /** What clients that predate photo messages show. */
 export const IMAGE_FALLBACK_TEXT = '[Photo]';
 /** How much of the answered message a reply quotes. */

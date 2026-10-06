@@ -95,6 +95,16 @@ class RealtimeClient(
         )
     }
 
+    /** Follows a message pin's chat; the server checks the fix against the pin like it does over REST. */
+    suspend fun subscribePin(pinId: String, lat: Double, lng: Double, accuracy: Double, mocked: Boolean): ServerEvent.Ack = request(
+        buildJsonObject {
+            put("type", "pin_subscribe"); put("pinId", pinId)
+            put("lat", lat); put("lng", lng); put("accuracy", accuracy); put("mocked", mocked)
+        },
+    )
+
+    suspend fun unsubscribePin(pinId: String): ServerEvent.Ack = request(buildJsonObject { put("type", "pin_unsubscribe"); put("pinId", pinId) })
+
     private suspend fun request(message: JsonObject, timeoutMs: Long = 8_000): ServerEvent.Ack {
         val reqId = "r${counter.incrementAndGet()}"
         val deferred = CompletableDeferred<ServerEvent.Ack>()

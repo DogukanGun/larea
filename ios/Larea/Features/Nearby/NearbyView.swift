@@ -12,7 +12,10 @@ struct NearbyView: View {
     @State private var detent: PanelDetent = .medium
     @State private var didFitOnce = false
     @State private var joinCount = 0
+    @State private var composing: PinComposerViewModel?
     let onJoined: (String, String) -> Void
+
+    private var pinsEnabled: Bool { env.session.session?.user.capabilities.pins == true }
 
     var body: some View {
         Group {
@@ -21,6 +24,7 @@ struct NearbyView: View {
         .toolbar(.hidden, for: .navigationBar)
         .onAppear {
             if model == nil { model = NearbyViewModel(api: env.api, location: env.location) }
+            model?.pinsEnabled = pinsEnabled
             model?.start()
         }
         .onDisappear { model?.stop() }
@@ -47,6 +51,22 @@ struct NearbyView: View {
         .alert("Not quite there", isPresented: Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })) {
             Button("OK") { model.notice = nil }
         } message: { Text(model.notice ?? "") }
+        .sheet(item: $composing) { composer in
+            PinComposerSheet(model: composer) { pin in
+                model.add(pin)
+                router.openPin(pin.id)
+            }
+        }
+        .onChange(of: env.pins.deliveredInBackground) { _, pin in
+            guard let pin else { return }
+            env.pins.deliveredInBackground = nil
+            model.add(pin)
+        }
+    }
+
+    private func compose(at coordinate: CLLocationCoordinate2D) {
+        guard pinsEnabled else { return }
+        composing = PinComposerViewModel(coordinate: coordinate, api: env.api, location: env.location, store: env.pins)
     }
 
     @ViewBuilder
@@ -89,8 +109,18 @@ struct NearbyView: View {
 
     @ViewBuilder
     private func map(_ model: NearbyViewModel) -> some View {
+        MapReader { proxy in
         Map(position: $camera, selection: $mapSelection) {
             UserAnnotation()
+            ForEach(model.pins) { pin in
+                Annotation("", coordinate: pin.coordinate, anchor: .bottom) {
+                    Button { router.openPin(pin.id) } label: { PinMarker(mine: pin.mine) }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Pinned message: \(pin.text)")
+                        .accessibilityIdentifier("nearby.pin.\(pin.id)")
+                }
+                .annotationTitles(.hidden)
+            }
             ForEach(model.venues) { venue in
                 Annotation(venue.name, coordinate: venue.coordinate, anchor: .center) {
                     VenuePin(venue: venue, selected: venue.id == model.selectedId)
@@ -108,6 +138,16 @@ struct NearbyView: View {
         .mapControls {
             MapUserLocationButton()
             MapCompass()
+        }
+        .gesture(
+            // Long-press anywhere to pin a message there.
+            LongPressGesture(minimumDuration: 0.5)
+                .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
+                .onEnded { value in
+                    guard case let .second(true, drag?) = value, let coordinate = proxy.convert(drag.location, from: .local) else { return }
+                    compose(at: coordinate)
+                }
+        )
         }
         .ignoresSafeArea(edges: .bottom)
         .overlay(alignment: .top) { topBar }
@@ -134,7 +174,7 @@ struct NearbyView: View {
     }
 
     private var topBar: some View {
-        HStack {
+        HStack(alignment: .top) {
             HStack(spacing: 8) {
                 LogoMark(size: 26)
                 Text("Larea").font(.system(size: 22, weight: .heavy, design: .rounded))
@@ -144,6 +184,25 @@ struct NearbyView: View {
             .padding(.vertical, 8)
             .background(.bar, in: Capsule())
             Spacer()
+            if pinsEnabled {
+                Button {
+                    // The map centre, or where we are before the map has reported a camera.
+                    if let view = model?.viewport {
+                        compose(at: CLLocationCoordinate2D(latitude: view.lat, longitude: view.lng))
+                    } else if let fix = env.location.latestFix {
+                        compose(at: CLLocationCoordinate2D(latitude: fix.lat, longitude: fix.lng))
+                    }
+                } label: {
+                    Label("Pin a message", systemImage: "text.bubble.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .background(Color.sunny, in: Capsule())
+                        .foregroundStyle(Color(red: 0.30, green: 0.18, blue: 0.0))
+                }
+                .accessibilityHint("Pins a message at the centre of the map. You can also long-press the map.")
+                .accessibilityIdentifier("nearby.pinMessage")
+            }
         }
         .padding(.horizontal, Spacing.screen)
         .padding(.top, 8)

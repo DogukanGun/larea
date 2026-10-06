@@ -6,6 +6,7 @@ import { PrismaService } from '../infra/prisma/prisma.service.js';
 import { ListingsService } from '../market/listings.service.js';
 import { OrdersService } from '../market/orders.service.js';
 import { MessagesService } from '../messages/messages.service.js';
+import { PinsService } from '../pins/pins.service.js';
 import { ResolveAction, type ResolveOrderDto, type ResolveReportDto } from './dto/admin.dto.js';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class AdminService {
     private readonly listings: ListingsService,
     private readonly orders: OrdersService,
     private readonly enforcement: EnforcementService,
+    private readonly pins: PinsService,
   ) {}
 
   resolveOrder(orderId: string, dto: ResolveOrderDto) {
@@ -32,6 +34,8 @@ export class AdminService {
         reportedUser: { select: { id: true, displayName: true, mutedUntil: true, suspendedAt: true } },
         message: { select: { id: true, venueId: true, text: true, originalText: true, status: true, severity: true, categories: true, createdAt: true } },
         listing: { select: { id: true, kind: true, title: true, description: true, priceCents: true, status: true, createdAt: true } },
+        pin: { select: { id: true, text: true, originalText: true, status: true, tier: true, lat: true, lng: true, createdAt: true, expiresAt: true } },
+        pinMessage: { select: { id: true, pinId: true, text: true, originalText: true, status: true, severity: true, categories: true, createdAt: true } },
       },
     });
   }
@@ -61,11 +65,26 @@ export class AdminService {
     const report = await this.prisma.report.findUnique({ where: { id: reportId } });
     if (!report) throw notFound('Report not found.');
     const reason = dto.note?.trim() || `Moderator action on report ${reportId}`;
-    // A report targets a message or a listing; the same decisions apply to both.
-    const target = report.messageId ? { messageId: report.messageId } : { listingId: report.listingId! };
-    const hideContent = () => (report.messageId ? this.messages.hide(report.messageId) : this.listings.remove(report.listingId!, 'moderator'));
+    // A report targets a message, a listing, a pin or a pin message; the same decisions apply to all.
+    const target = report.messageId
+      ? { messageId: report.messageId }
+      : report.listingId
+        ? { listingId: report.listingId }
+        : report.pinId
+          ? { pinId: report.pinId }
+          : { pinMessageId: report.pinMessageId! };
+    const hideContent = () =>
+      report.messageId
+        ? this.messages.hide(report.messageId)
+        : report.listingId
+          ? this.listings.remove(report.listingId, 'moderator')
+          : report.pinId
+            ? this.pins.remove(report.pinId, 'moderator')
+            : this.pins.hideMessage(report.pinMessageId!);
+    // Violations keep pin messages under messageId (they share the chat message strike rules).
+    const violationTarget = report.pinMessageId ? { messageId: report.pinMessageId } : target;
     const violation = (severity: number) =>
-      this.prisma.violation.create({ data: { userId: report.reportedUserId, ...target, severity, categories: [report.reason.toLowerCase()], source: 'MODERATOR' } });
+      this.prisma.violation.create({ data: { userId: report.reportedUserId, ...violationTarget, severity, categories: [report.reason.toLowerCase()], source: 'MODERATOR' } });
 
     switch (dto.action) {
       case ResolveAction.DISMISS:
@@ -88,7 +107,7 @@ export class AdminService {
 
     const status: ReportStatus = dto.action === ResolveAction.DISMISS ? 'DISMISSED' : 'ACTIONED';
     const now = new Date();
-    const refId = report.messageId ?? report.listingId!;
+    const refId = report.messageId ?? report.listingId ?? report.pinId ?? report.pinMessageId!;
     await this.prisma.$transaction([
       // Every open report on the same target is settled by this decision.
       this.prisma.report.updateMany({ where: { ...target, status: 'OPEN' }, data: { status, reviewedById: moderatorId, reviewedAt: now } }),

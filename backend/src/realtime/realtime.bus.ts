@@ -14,7 +14,9 @@ export interface Audience {
 }
 
 interface Envelope {
-  target: { venueId?: string; userId?: string };
+  target: { venueId?: string; pinId?: string; userId?: string };
+  /** Pin targets: drop the reached sockets from the pin chat after delivering (ban, close). */
+  leavePin?: boolean;
   excludeUserIds?: string[];
   audience?: Audience;
   event?: ServerEvent;
@@ -55,6 +57,16 @@ export class RealtimeBus implements OnModuleInit, OnModuleDestroy {
     this.publish({ target: { venueId }, excludeUserIds, audience, event });
   }
 
+  /** Everyone following a pin's chat. */
+  toPin(pinId: string, event: ServerEvent, excludeUserIds: string[] = []): void {
+    this.publish({ target: { pinId }, excludeUserIds, event });
+  }
+
+  /** Tells the pin's followers (or one of them) that the chat is gone for them, and unsubscribes them. */
+  closePin(pinId: string, event: ServerEvent, onlyUserId?: string): void {
+    this.publish({ target: { pinId, userId: onlyUserId }, event, leavePin: true });
+  }
+
   toUser(userId: string, event: ServerEvent): void {
     this.publish({ target: { userId }, event });
   }
@@ -71,9 +83,12 @@ export class RealtimeBus implements OnModuleInit, OnModuleDestroy {
   deliver(envelope: Envelope): void {
     const excluded = new Set(envelope.excludeUserIds ?? []);
     const audience = envelope.audience ? { userIds: new Set(envelope.audience.userIds), build: envelope.audience.build } : null;
+    const { pinId } = envelope.target;
     const conns = envelope.target.venueId
       ? this.registry.forVenue(envelope.target.venueId)
-      : envelope.target.userId
+      : pinId
+        ? this.registry.forPin(pinId).filter((c) => !envelope.target.userId || c.userId === envelope.target.userId)
+        : envelope.target.userId
         ? this.registry.forUser(envelope.target.userId)
         : [];
     const payload = envelope.event ? JSON.stringify(envelope.event) : null;
@@ -85,6 +100,7 @@ export class RealtimeBus implements OnModuleInit, OnModuleDestroy {
         continue;
       }
       if (payload && conn.socket.readyState === conn.socket.OPEN) conn.socket.send(payload);
+      if (pinId && envelope.leavePin) this.registry.leavePin(conn, pinId);
     }
   }
 }

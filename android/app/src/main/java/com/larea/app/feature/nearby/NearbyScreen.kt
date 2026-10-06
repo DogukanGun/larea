@@ -67,6 +67,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.larea.app.core.network.ActiveMembership
 import com.larea.app.core.network.NearbyVenue
+import com.larea.app.feature.pins.PinComposerSheet
+import com.larea.app.feature.pins.PinComposerViewModel
 import com.larea.app.solana.LocalSolanaUi
 import com.larea.app.ui.components.BottomPanel
 import com.larea.app.ui.components.EmptyState
@@ -102,7 +104,10 @@ fun NearbyScreen(
     onShowActiveChat: () -> Unit,
     onJoined: (venueId: String, venueName: String) -> Unit,
     bottomInset: androidx.compose.ui.unit.Dp,
+    pinsEnabled: Boolean = false,
+    onOpenPin: (String) -> Unit = {},
     model: NearbyViewModel = hiltViewModel(),
+    composer: PinComposerViewModel = hiltViewModel(),
 ) {
     val state by model.state.collectAsStateWithLifecycle()
     val c = Larea.colors
@@ -120,9 +125,20 @@ fun NearbyScreen(
             else -> 0.5f
         }
     }
+    var composing by remember { mutableStateOf(false) }
     DisposableEffect(Unit) {
         model.start()
         onDispose { model.stop() }
+    }
+    LaunchedEffect(pinsEnabled) {
+        model.pinsEnabled = pinsEnabled
+        if (pinsEnabled) model.refreshNow()
+    }
+
+    fun compose(lat: Double, lng: Double) {
+        if (!pinsEnabled) return
+        composer.begin(lat, lng)
+        composing = true
     }
 
     fun join(venueId: String, venueName: String) {
@@ -161,6 +177,10 @@ fun NearbyScreen(
             controller = map,
             modifier = Modifier.fillMaxSize(),
             onCameraIdle = { if (centered) model.mapMoved(it) },
+            onMapLongClick = if (pinsEnabled) { lat, lng ->
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                compose(lat, lng)
+            } else null,
         ) {
             state.selectedVenue?.let { MapCircle(map, it.lat, it.lng, 200.0, c.brandPrimary) }
             state.fix?.let { UserDot(map, it.lat, it.lng) }
@@ -172,8 +192,29 @@ fun NearbyScreen(
                     onClick = { model.select(venue.id) },
                 )
             }
+            state.pins.forEach { pin ->
+                PinMarker(
+                    mine = pin.mine,
+                    modifier = Modifier
+                        .placeAt(map, pin.lat, pin.lng, anchorBottom = true)
+                        .clickable { onOpenPin(pin.id) }
+                        .semantics { contentDescription = "Pinned message: ${pin.text}" }
+                        .testTag("nearby.pin.${pin.id}"),
+                )
+            }
         }
         TopBar(Modifier.align(Alignment.TopStart))
+        if (pinsEnabled) {
+            PinButton(
+                onClick = {
+                    // The map centre, or where we are before the map has reported a camera.
+                    val view = state.viewport
+                    val fix = state.fix
+                    if (view != null) compose(view.lat, view.lng) else if (fix != null) compose(fix.lat, fix.lng)
+                },
+                modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 60.dp, end = Spacing.screen),
+            )
+        }
         MyLocationButton(
             onClick = { state.fix?.let { map.show(it.lat, it.lng, 1000.0) } },
             modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 8.dp, end = Spacing.screen),
@@ -208,6 +249,17 @@ fun NearbyScreen(
         }
     }
 
+    if (composing) {
+        PinComposerSheet(
+            model = composer,
+            onDismiss = { composing = false },
+            onPinned = { pin ->
+                model.add(pin)
+                onOpenPin(pin.id)
+            },
+        )
+    }
+
     state.notice?.let { notice ->
         AlertDialog(
             onDismissRequest = model::dismissNotice,
@@ -233,6 +285,41 @@ private fun TopBar(modifier: Modifier = Modifier) {
     ) {
         LogoMark(size = 26.dp)
         Text("Larea", fontFamily = Rounded, fontWeight = FontWeight.Black, fontSize = 22.sp, color = c.text, modifier = Modifier.testTag("nearby.root"))
+    }
+}
+
+@Composable
+private fun PinButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val c = Larea.colors
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = modifier
+            .shadow(4.dp, CircleShape)
+            .background(c.sunny, CircleShape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 9.dp)
+            .semantics { contentDescription = "Pin a message at the centre of the map. You can also long-press the map." }
+            .testTag("nearby.pinMessage"),
+    ) {
+        Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, tint = c.onSunny, modifier = Modifier.size(18.dp))
+        Text("Pin a message", style = LareaType.subheadline.copy(fontWeight = FontWeight.SemiBold), color = c.onSunny)
+    }
+}
+
+/** The map marker for a message pin: a speech bubble, unlike the round place markers. */
+@Composable
+private fun PinMarker(mine: Boolean, modifier: Modifier = Modifier) {
+    val c = Larea.colors
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .size(36.dp)
+            .shadow(4.dp, RoundedCornerShape(12.dp))
+            .background(c.sunny, RoundedCornerShape(12.dp))
+            .border(2.dp, if (mine) c.brandPrimary else Color.White, RoundedCornerShape(12.dp)),
+    ) {
+        Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, tint = c.onSunny, modifier = Modifier.size(18.dp))
     }
 }
 

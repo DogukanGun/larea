@@ -57,6 +57,8 @@ import com.larea.app.ui.navigation.MarketListing
 import com.larea.app.ui.navigation.NavRequest
 import com.larea.app.ui.navigation.NearbyGraph
 import com.larea.app.ui.navigation.NearbyHome
+import com.larea.app.ui.navigation.NearbyPin
+import com.larea.app.feature.pins.PinChatScreen
 import com.larea.app.ui.navigation.ProfileGraph
 import com.larea.app.ui.navigation.ProfileHome
 import com.larea.app.ui.navigation.ProfileListing
@@ -88,7 +90,7 @@ fun MainScaffold(root: RootViewModel) {
     val activeChat by router.activeChat.collectAsStateWithLifecycle()
     val backStack by nav.currentBackStackEntryAsState()
     val destination = backStack?.destination
-    val inChat = destination?.hasRoute<ChatRoute>() == true
+    val inChat = destination?.hasRoute<ChatRoute>() == true || destination?.hasRoute<NearbyPin>() == true
     val deals by root.deals.state.collectAsStateWithLifecycle()
     val market = me?.capabilities?.market == true
     val dealsBadge = if (market) deals.attentionCount else 0
@@ -145,7 +147,12 @@ fun MainScaffold(root: RootViewModel) {
                         onShowActiveChat = router::showActiveChat,
                         onJoined = { id, name -> router.openChat(root.chats.create(id), id, name) },
                         bottomInset = bottomInset,
+                        pinsEnabled = me?.capabilities?.pins == true,
+                        onOpenPin = router::openPin,
                     )
+                }
+                composable<NearbyPin> {
+                    PinChatScreen(onBack = { nav.popBackStack() })
                 }
                 composable<ChatRoute> {
                     val chat = activeChat

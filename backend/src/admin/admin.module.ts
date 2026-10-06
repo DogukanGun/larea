@@ -3,11 +3,12 @@ import { AuthModule } from '../auth/auth.module.js';
 import { EnforcementModule } from '../enforcement/enforcement.module.js';
 import { MarketModule } from '../market/market.module.js';
 import { MessagesModule } from '../messages/messages.module.js';
+import { PinsModule } from '../pins/pins.module.js';
 import { AdminController } from './admin.controller.js';
 import { AdminService } from './admin.service.js';
 
 @Module({
-  imports: [AuthModule, MessagesModule, EnforcementModule, MarketModule],
+  imports: [AuthModule, MessagesModule, EnforcementModule, MarketModule, PinsModule],
   controllers: [AdminController],
   providers: [AdminService],
 })

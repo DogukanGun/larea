@@ -7,6 +7,8 @@ enum AppTab: String, Hashable, CaseIterable {
 
 enum NearbyRoute: Hashable {
     case chat(ChatRoute)
+    /// A message pin and the chat under it.
+    case pin(String)
 }
 
 enum MarketRoute: Hashable {
@@ -66,6 +68,11 @@ final class AppRouter {
     private var pendingLink: DeepLink?
 
     var isShowingChat: Bool { tab == .nearby && !nearbyPath.isEmpty }
+
+    func openPin(_ pinId: String) {
+        tab = .nearby
+        nearbyPath = [.pin(pinId)]
+    }
 
     func openChat(_ model: ChatViewModel, route: ChatRoute) {
         activeChat?.stop()

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MarketScheduler } from '../src/market/market.scheduler.js';
+import { MediaStorage } from '../src/media/media.storage.js';
 import { RetentionService } from '../src/retention/retention.service.js';
 import { haversineMeters } from '../src/venues/geo.js';
 import { auth, connectWs, createTestApp, makeStripeReady, registerUser, type TestContext, type TestUser, uploadImage, verifyAge } from './helpers.js';
@@ -274,6 +275,19 @@ describe('marketplace listings and offers', () => {
     const accepted = await ctx.http().post(`/market/offers/${help.body.id}/accept`).set(auth(requester)).expect(200);
     expect(accepted.body.offer.status).toBe('ACCEPTED');
     expect(accepted.body.order).toMatchObject({ payer: { id: requester.id }, payee: { id: helper.id }, role: 'payer' });
+  });
+
+  it('keeps the photos of a live listing through the retention run', async () => {
+    const photo = (await uploadImage(ctx, seller)).id;
+    const res = await create(seller, { title: 'Oak bookshelf', mediaIds: [photo] }).expect(201);
+    const dayOld = new Date(Date.now() - 86_400_000);
+    await ctx.prisma.media.update({ where: { id: photo }, data: { createdAt: dayOld, attachedAt: dayOld } });
+
+    await ctx.app.get(RetentionService).run();
+    expect((await ctx.prisma.media.findUniqueOrThrow({ where: { id: photo } })).status).toBe('ATTACHED');
+    expect(await ctx.app.get(MediaStorage).exists(photo)).toBe(true);
+    const detail = await ctx.http().get(`/market/listings/${res.body.id}`).set(auth(buyer)).query(fix(near)).expect(200);
+    expect(detail.body.images.map((i: { id: string }) => i.id)).toEqual([photo]);
   });
 
   it('expires stale offers and listings on the sweep, and purges closed listings with their photos', async () => {

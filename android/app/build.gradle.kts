@@ -112,6 +112,7 @@ dependencies {
     implementation(libs.coil.okhttp)
     implementation(libs.play.age.signals)
     "solanaImplementation"(libs.solana.mwa)
+    "playImplementation"(libs.play.billing)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

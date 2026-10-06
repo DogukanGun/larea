@@ -7,6 +7,7 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
 import com.larea.app.core.network.LocationFixBody
+import com.larea.app.core.network.MessagePin
 import com.larea.app.core.network.Order
 
 @Serializable
@@ -153,4 +154,12 @@ interface SolanaApi {
 
     @POST("market/orders/{id}/solana/pay") suspend fun payOrder(@Path("id") orderId: String): OrderPayment
     @POST("market/orders/{id}/solana/submit") suspend fun submitOrderPayment(@Path("id") orderId: String, @Body body: SubmitStampRequest): Order
+
+    @POST("pins/{id}/solana/pay") suspend fun payPin(@Path("id") pinId: String): PinSolanaPayment
+    @POST("pins/{id}/solana/submit") suspend fun submitPinPayment(@Path("id") pinId: String, @Body body: SubmitStampRequest): MessagePin
 }
+
+/** The USDC transfer for a message pin, built by Larea for the wallet to sign. */
+@Serializable
+data class PinSolanaPayment(val pin: MessagePin, val transaction: String, val cluster: String = "devnet", val amount: String = "", val token: String = "USDC")
+

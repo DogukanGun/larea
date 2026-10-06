@@ -10,6 +10,7 @@ final class AppEnvironment {
     let sessions: SessionRepository
     let realtime: RealtimeClient
     let location: LocationService
+    let pins: PinStore
 
     init() {
         let store = SessionStore()
@@ -24,5 +25,6 @@ final class AppEnvironment {
         sessions = SessionRepository(api: api, store: store)
         realtime = RealtimeClient(url: Backend.webSocketURL, tokens: refresher)
         location = LocationService()
+        pins = PinStore(api: api)
     }
 }

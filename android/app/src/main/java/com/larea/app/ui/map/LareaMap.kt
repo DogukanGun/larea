@@ -145,6 +145,8 @@ fun LareaMap(
     attributionTopMargin: Dp = 116.dp,
     onCameraIdle: (MapViewport) -> Unit = {},
     onMapClick: () -> Unit = {},
+    /** Long-press on the map with the coordinate under the finger (pinning a message). */
+    onMapLongClick: ((lat: Double, lng: Double) -> Unit)? = null,
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -152,6 +154,7 @@ fun LareaMap(
     val dark = Larea.colors.isDark
     val idle by rememberUpdatedState(onCameraIdle)
     val click by rememberUpdatedState(onMapClick)
+    val longClick by rememberUpdatedState(onMapLongClick)
     val mapView = remember {
         MapView(context).apply { onCreate(null) }
     }
@@ -198,6 +201,11 @@ fun LareaMap(
                     controller.viewport()?.let { idle(it) }
                 }
                 map.addOnMapClickListener { click(); false }
+                map.addOnMapLongClickListener { point ->
+                    val handler = longClick ?: return@addOnMapLongClickListener false
+                    handler(point.latitude, point.longitude)
+                    true
+                }
                 controller.attach(map)
                 controller.cameraTick++
             }
