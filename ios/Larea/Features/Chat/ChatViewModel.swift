@@ -7,6 +7,7 @@ struct PendingMessage: Identifiable, Equatable {
     let text: String
     var image: UIImage? = nil
     var uploading = false
+    var replyTo: ReplyPreview? = nil
 }
 
 @MainActor
@@ -27,6 +28,8 @@ final class ChatViewModel {
     var left = false
     var loading = true
     var myUserId: String?
+    /// The message the composer is answering, if any.
+    var replyingTo: ChatMessage?
 
     private let api: APIClient
     private let uploader: ImageUploader
@@ -156,7 +159,9 @@ final class ChatViewModel {
     private func handle(_ event: ServerEvent) {
         switch event {
         case let .message(message) where message.venueId == venueId: add(message)
-        case let .messageHidden(_, messageId): messages.removeAll { $0.id == messageId }
+        case let .messageHidden(_, messageId):
+            messages.removeAll { $0.id == messageId }
+            markQuotesUnavailable { $0.id == messageId }
         case let .presence(id, count) where id == venueId: presence = count
         case let .pollUpdate(id, messageId, poll) where id == venueId:
             if let index = messages.firstIndex(where: { $0.id == messageId }) {
@@ -183,14 +188,15 @@ final class ChatViewModel {
         messages.sort { $0.createdAt < $1.createdAt }
     }
 
-    func send(_ text: String) async {
+    func send(_ text: String, replyTo: ChatMessage? = nil) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let item = PendingMessage(id: UUID().uuidString, text: trimmed)
+        let item = PendingMessage(id: UUID().uuidString, text: trimmed, replyTo: replyTo.map(ReplyPreview.of))
         pending.append(item)
         defer { pending.removeAll { $0.id == item.id } }
         do {
-            let result: SendResult = try await api.send(try APIRequest(.POST, "venues/\(venueId)/messages", json: SendMessageRequest.text(trimmed, clientKey: item.id)))
+            let body = SendMessageRequest.text(trimmed, replyToId: replyTo?.id, clientKey: item.id)
+            let result: SendResult = try await api.send(try APIRequest(.POST, "venues/\(venueId)/messages", json: body))
             apply(result, blockedFallback: "This message doesn't meet our community guidelines.")
         } catch {
             await handleSendError(error)
@@ -198,15 +204,15 @@ final class ChatViewModel {
     }
 
     /// Uploads the photo (already downsized on the device), then sends it like any other message.
-    func sendImage(_ data: Data, caption: String?) async {
+    func sendImage(_ data: Data, caption: String?, replyTo: ChatMessage? = nil) async {
         let trimmed = caption?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let item = PendingMessage(id: UUID().uuidString, text: trimmed, image: UIImage(data: data), uploading: true)
+        let item = PendingMessage(id: UUID().uuidString, text: trimmed, image: UIImage(data: data), uploading: true, replyTo: replyTo.map(ReplyPreview.of))
         pending.append(item)
         defer { pending.removeAll { $0.id == item.id } }
         do {
             let media = try await uploader.upload(data)
             if let index = pending.firstIndex(where: { $0.id == item.id }) { pending[index].uploading = false }
-            let body = SendMessageRequest.image(mediaId: media.id, caption: trimmed, clientKey: item.id)
+            let body = SendMessageRequest.image(mediaId: media.id, caption: trimmed, replyToId: replyTo?.id, clientKey: item.id)
             let result: SendResult = try await api.send(try APIRequest(.POST, "venues/\(venueId)/messages", json: body))
             apply(result, blockedFallback: "This photo doesn't meet our community guidelines.")
         } catch {
@@ -292,6 +298,8 @@ final class ChatViewModel {
         do {
             try await api.sendNoContent(APIRequest(.POST, "users/\(author.id)/block"))
             messages.removeAll { $0.author.id == author.id }
+            markQuotesUnavailable { $0.author?.id == author.id }
+            if replyingTo?.author.id == author.id { replyingTo = nil }
             notice = "\(author.displayName) is blocked."
         } catch {
             notice = error.userMessage
@@ -304,6 +312,14 @@ final class ChatViewModel {
     }
 
     var isMuted: Bool { (mutedUntil ?? .distantPast) > .now }
+
+    /// Quotes of a removed message (or of a blocked person) turn into "Message unavailable".
+    private func markQuotesUnavailable(where matches: (ReplyPreview) -> Bool) {
+        for index in messages.indices {
+            if let quote = messages[index].replyTo, !quote.unavailable, matches(quote) { messages[index].replyTo = .gone(quote.id) }
+        }
+        if let target = replyingTo, !messages.contains(where: { $0.id == target.id }) { replyingTo = nil }
+    }
 
     private func addNotice(_ kind: SystemNotice.Kind, _ text: String) {
         notices.append(SystemNotice(id: UUID().uuidString, kind: kind, text: text))

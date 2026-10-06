@@ -377,10 +377,53 @@ struct ChatMessage: Codable, Sendable, Identifiable, Equatable {
     var caption: String? = nil
     var image: ImageAttachment? = nil
     var poll: PollView? = nil
+    var replyTo: ReplyPreview? = nil
+}
+
+/// The message a reply answers, as a short quote. `unavailable` when it was removed or its author is blocked.
+struct ReplyPreview: Codable, Sendable, Equatable {
+    let id: String
+    var author: Author? = nil
+    var kind: MessageKind? = nil
+    var text: String? = nil
+    var unavailable = false
+
+    private enum Keys: String, CodingKey { case id, author, kind, text, unavailable }
+
+    init(id: String, author: Author? = nil, kind: MessageKind? = nil, text: String? = nil, unavailable: Bool = false) {
+        self.id = id
+        self.author = author
+        self.kind = kind
+        self.text = text
+        self.unavailable = unavailable
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        id = try c.decode(String.self, forKey: .id)
+        author = try c.decodeIfPresent(Author.self, forKey: .author)
+        kind = try c.decodeIfPresent(MessageKind.self, forKey: .kind)
+        text = try c.decodeIfPresent(String.self, forKey: .text)
+        unavailable = try c.decodeIfPresent(Bool.self, forKey: .unavailable) ?? false
+    }
+
+    /// The quote this app shows for a message before the server's version arrives (same rules as the server).
+    static func of(_ message: ChatMessage) -> ReplyPreview {
+        let text: String
+        switch message.kind {
+        case .poll: text = message.poll.map { "Poll: \($0.question)" } ?? message.text
+        case .image: text = (message.caption ?? "").isEmpty ? "[Photo]" : message.caption!
+        default: text = message.text
+        }
+        let short = text.count > 140 ? String(text.prefix(139)).trimmingCharacters(in: .whitespaces) + "…" : text
+        return ReplyPreview(id: message.id, author: message.author, kind: message.kind, text: short)
+    }
+
+    static func gone(_ id: String) -> ReplyPreview { ReplyPreview(id: id, unavailable: true) }
 }
 
 extension ChatMessage {
-    private enum Keys: String, CodingKey { case id, venueId, author, text, status, createdAt, kind, caption, image, poll }
+    private enum Keys: String, CodingKey { case id, venueId, author, text, status, createdAt, kind, caption, image, poll, replyTo }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
@@ -394,6 +437,7 @@ extension ChatMessage {
         caption = try c.decodeIfPresent(String.self, forKey: .caption)
         image = try c.decodeIfPresent(ImageAttachment.self, forKey: .image)
         poll = try c.decodeIfPresent(PollView.self, forKey: .poll)
+        replyTo = try c.decodeIfPresent(ReplyPreview.self, forKey: .replyTo)
     }
 }
 
@@ -412,14 +456,15 @@ struct SendMessageRequest: Encodable, Sendable {
     var kind: String? = nil
     var text: String? = nil
     var mediaId: String? = nil
+    var replyToId: String? = nil
     let clientKey: String
 
-    static func text(_ text: String, clientKey: String) -> SendMessageRequest {
-        SendMessageRequest(text: text, clientKey: clientKey)
+    static func text(_ text: String, replyToId: String? = nil, clientKey: String) -> SendMessageRequest {
+        SendMessageRequest(text: text, replyToId: replyToId, clientKey: clientKey)
     }
 
-    static func image(mediaId: String, caption: String?, clientKey: String) -> SendMessageRequest {
-        SendMessageRequest(kind: "IMAGE", text: caption.flatMap { $0.isEmpty ? nil : $0 }, mediaId: mediaId, clientKey: clientKey)
+    static func image(mediaId: String, caption: String?, replyToId: String? = nil, clientKey: String) -> SendMessageRequest {
+        SendMessageRequest(kind: "IMAGE", text: caption.flatMap { $0.isEmpty ? nil : $0 }, mediaId: mediaId, replyToId: replyToId, clientKey: clientKey)
     }
 }
 

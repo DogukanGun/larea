@@ -57,7 +57,16 @@ final class LareaFlowUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Confirm you're 18 or older"].waitForExistence(timeout: 15))
         // iOS 26 asks to save the new password in a system sheet that covers the screen.
-        if app.buttons["Not Now"].waitForExistence(timeout: 3) { app.buttons["Not Now"].tap() }
+        // It can come from the app or from SpringBoard, a few seconds after the screen appears.
+        for _ in 0..<16 {
+            let notNowLabel = NSPredicate(format: "label ==[c] 'Not Now'")
+            let candidates = [app, springboard].map { $0.descendants(matching: .button).matching(notNowLabel).firstMatch }
+            if let notNow = candidates.first(where: { $0.exists && $0.isHittable }) {
+                notNow.tap()
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
         snapshot(app, "04-verification")
         let confirmAge = app.buttons["verify.start"]
         if !confirmAge.isHittable { app.swipeUp() } // the steps push the button below the fold on small screens
@@ -206,6 +215,28 @@ final class LareaFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["100%"].waitForExistence(timeout: 15), "the vote did not register")
         sleep(1)
         snapshot(app, "08b-poll")
+
+        // Replies: long-press a message → Reply → send; the answer shows a quote of it.
+        app.staticTexts["Anyone want to get food?"].firstMatch.press(forDuration: 1.0)
+        let replyItem = app.buttons["Reply"]
+        XCTAssertTrue(replyItem.waitForExistence(timeout: 5), "the message menu has no Reply")
+        replyItem.tap()
+        let replyBar = app.descendants(matching: .any).matching(identifier: "chat.reply.preview").firstMatch
+        XCTAssertTrue(replyBar.waitForExistence(timeout: 5), "the reply bar did not appear")
+        composer.tap()
+        composer.typeText("Ramen it is")
+        app.buttons["chat.send"].tap()
+        let quote = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'chat.reply.' AND NOT (identifier IN {'chat.reply.preview', 'chat.reply.cancel'})")).firstMatch
+        XCTAssertTrue(quote.waitForExistence(timeout: 15), "the reply has no quote")
+        XCTAssertFalse(replyBar.exists, "the reply bar stayed after sending")
+        sleep(1)
+        snapshot(app, "08c-reply")
+        // Swiping a message to the right starts a reply too; the bar can be dismissed.
+        app.staticTexts["Ramen it is"].firstMatch.swipeRight()
+        XCTAssertTrue(replyBar.waitForExistence(timeout: 5), "swiping did not start a reply")
+        snapshot(app, "08d-reply-swipe")
+        app.buttons["chat.reply.cancel"].tap()
+        XCTAssertTrue(replyBar.waitForNonExistence(timeout: 5), "the reply bar did not close")
 
 
         composer.tap()

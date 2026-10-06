@@ -22,6 +22,8 @@ struct ChatView: View {
     @State private var attachment: ComposerAttachment?
     @State private var viewing: ImageAttachment?
     @State private var showCreatePoll = false
+    /// The message a tapped quote jumped to, highlighted for a moment.
+    @State private var highlightedId: String?
     /// Lift of the composer above the keyboard, tracked by hand: SwiftUI's automatic keyboard
     /// avoidance is unreliable for this screen inside a TabView after the tab bar is hidden.
     @State private var keyboardInset: CGFloat = 0
@@ -97,15 +99,17 @@ struct ChatView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            Composer(draft: $draft, attachment: $attachment, disabled: model.isMuted, onCreatePoll: { showCreatePoll = true }) {
+            Composer(draft: $draft, attachment: $attachment, replyingTo: $model.replyingTo, myUserId: model.myUserId, disabled: model.isMuted, onCreatePoll: { showCreatePoll = true }) {
                 let text = draft
                 let photo = attachment
+                let target = model.replyingTo
                 draft = ""
                 attachment = nil
+                model.replyingTo = nil
                 if let photo {
-                    Task { await model.sendImage(photo.data, caption: text) }
+                    Task { await model.sendImage(photo.data, caption: text, replyTo: target) }
                 } else {
-                    Task { await model.send(text) }
+                    Task { await model.send(text, replyTo: target) }
                 }
             }
             .padding(.bottom, keyboardInset)
@@ -173,6 +177,17 @@ struct ChatView: View {
         .onChange(of: model.left) { _, left in if left { onLeft() } }
     }
 
+    /// Brings the answered message into view and flashes it; nothing happens when it isn't loaded.
+    private func jump(to id: String) {
+        guard model.messages.contains(where: { $0.id == id }) else { return }
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) { scrolledId = id }
+        highlightedId = id
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.2))
+            withAnimation(.easeOut(duration: 0.4)) { if highlightedId == id { highlightedId = nil } }
+        }
+    }
+
     /// Scrolls after the current layout pass so the row transition cannot swallow the request.
     private func scrollToNewest(_ rows: [ChatRow]) {
         guard let last = rows.last else { return }
@@ -193,8 +208,10 @@ struct ChatView: View {
                 .frame(maxWidth: .infinity)
         case let .message(message, position, showHeader):
             let mine = message.author.id == model.myUserId
-            MessageRow(message: message, position: position, showHeader: showHeader && !mine, mine: mine, onOpenImage: { viewing = $0 })
+            MessageRow(message: message, position: position, showHeader: showHeader && !mine, mine: mine, highlighted: highlightedId == message.id, onOpenImage: { viewing = $0 }, onQuote: jump)
+                .modifier(SwipeToReply { model.replyingTo = message })
                 .contextMenu {
+                    Button("Reply", systemImage: "arrowshape.turn.up.left") { model.replyingTo = message }
                     if !mine {
                         Button("Report", systemImage: "flag") { reporting = message }
                         Button("Block \(message.author.displayName)", systemImage: "hand.raised", role: .destructive) { blocking = message }
@@ -206,6 +223,7 @@ struct ChatView: View {
                 let mine = message.author.id == model.myUserId
                 PollRow(message: message, poll: poll, mine: mine, onVote: { optionId in Task { await model.vote(messageId: message.id, optionId: optionId) } }, onClose: { Task { await model.closePoll(messageId: message.id) } })
                     .contextMenu {
+                        Button("Reply", systemImage: "arrowshape.turn.up.left") { model.replyingTo = message }
                         if !mine {
                             Button("Report", systemImage: "flag") { reporting = message }
                             Button("Block \(message.author.displayName)", systemImage: "hand.raised", role: .destructive) { blocking = message }
@@ -220,9 +238,9 @@ struct ChatView: View {
         case let .pending(pending):
             Group {
                 if let preview = pending.image {
-                    ImageBubble(image: nil, preview: preview, caption: pending.text, mine: true, position: .single, pending: true, uploading: pending.uploading, onOpen: {})
+                    ImageBubble(image: nil, preview: preview, caption: pending.text, mine: true, position: .single, pending: true, uploading: pending.uploading, replyTo: pending.replyTo, onOpen: {})
                 } else {
-                    Bubble(text: pending.text, mine: true, position: .single, pending: true)
+                    Bubble(text: pending.text, mine: true, position: .single, pending: true, replyTo: pending.replyTo)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
@@ -240,7 +258,9 @@ private struct MessageRow: View {
     let position: GroupPosition
     let showHeader: Bool
     let mine: Bool
+    var highlighted = false
     var onOpenImage: (ImageAttachment) -> Void = { _ in }
+    var onQuote: (String) -> Void = { _ in }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: Spacing.s) {
@@ -261,10 +281,10 @@ private struct MessageRow: View {
                         .padding(.leading, 6)
                 }
                 if message.kind == .image, let image = message.image {
-                    ImageBubble(image: image, preview: nil, caption: message.caption ?? "", mine: mine, position: position, pending: false, uploading: false, onOpen: { onOpenImage(image) })
+                    ImageBubble(image: image, preview: nil, caption: message.caption ?? "", mine: mine, position: position, pending: false, uploading: false, replyTo: message.replyTo, onQuote: onQuote, onOpen: { onOpenImage(image) })
                         .accessibilityIdentifier("chat.image.\(message.id)")
                 } else {
-                    Bubble(text: message.text, mine: mine, position: position, pending: false)
+                    Bubble(text: message.text, mine: mine, position: position, pending: false, replyTo: message.replyTo, onQuote: onQuote)
                 }
                 if position == .single || position == .last {
                     Text(Self.time(message.createdAt)).font(.caption2).foregroundStyle(.tertiary).padding(.horizontal, 6)
@@ -272,6 +292,7 @@ private struct MessageRow: View {
             }
             if !mine { Spacer(minLength: 60) }
         }
+        .background(highlighted ? Color.brandTint : .clear, in: RoundedRectangle(cornerRadius: Radius.bubble, style: .continuous))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(message.kind == .image ? "Photo from \(message.author.displayName). \(message.caption ?? "")" : "\(message.author.displayName): \(message.text)")
     }
@@ -304,16 +325,23 @@ private struct Bubble: View {
     let mine: Bool
     let position: GroupPosition
     let pending: Bool
+    var replyTo: ReplyPreview? = nil
+    var onQuote: (String) -> Void = { _ in }
 
     var body: some View {
-        Text(text)
-            .font(.body)
-            .foregroundStyle(mine ? Color.white : Color.primary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .background(mine ? Color.brandPrimary : Color(.secondarySystemGroupedBackground), in: BubbleShape.shape(mine: mine, position: position))
-            .opacity(pending ? 0.55 : 1)
-            .frame(maxWidth: 300, alignment: mine ? .trailing : .leading)
+        VStack(alignment: .leading, spacing: 6) {
+            if let replyTo {
+                QuoteView(quote: replyTo, mine: mine).onTapGesture { onQuote(replyTo.id) }
+            }
+            Text(text)
+                .font(.body)
+                .foregroundStyle(mine ? Color.white : Color.primary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(mine ? Color.brandPrimary : Color(.secondarySystemGroupedBackground), in: BubbleShape.shape(mine: mine, position: position))
+        .opacity(pending ? 0.55 : 1)
+        .frame(maxWidth: 300, alignment: mine ? .trailing : .leading)
     }
 }
 
@@ -326,9 +354,17 @@ struct ImageBubble: View {
     let position: GroupPosition
     let pending: Bool
     let uploading: Bool
+    var replyTo: ReplyPreview? = nil
+    var onQuote: (String) -> Void = { _ in }
     let onOpen: () -> Void
 
     private static let width: CGFloat = 240
+
+    private var accessibilityText: String {
+        let photo = caption.isEmpty ? "Photo" : "Photo, \(caption)"
+        guard let replyTo, !replyTo.unavailable, let name = replyTo.author?.displayName else { return photo }
+        return "\(photo). Reply to \(name)"
+    }
 
     private var height: CGFloat {
         let ratio = image?.aspectRatio ?? (preview.map { $0.size.width / max(1, $0.size.height) } ?? 1.33)
@@ -337,6 +373,12 @@ struct ImageBubble: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if let replyTo {
+                QuoteView(quote: replyTo, mine: mine)
+                    .padding(6)
+                    .frame(width: Self.width, alignment: .leading)
+                    .onTapGesture { onQuote(replyTo.id) }
+            }
             ZStack {
                 if let preview {
                     Image(uiImage: preview).resizable().aspectRatio(contentMode: .fill)
@@ -363,8 +405,42 @@ struct ImageBubble: View {
         .opacity(pending ? 0.55 : 1)
         .onTapGesture { if image != nil { onOpen() } }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(caption.isEmpty ? "Photo" : "Photo, \(caption)")
+        .accessibilityLabel(accessibilityText)
         .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// The quoted message at the top of a reply; tap to jump to it.
+private struct QuoteView: View {
+    let quote: ReplyPreview
+    let mine: Bool
+
+    private var accent: Color {
+        if mine { return .white }
+        return quote.author.map { Avatar.palette[Avatar.colorIndex(for: $0.id)] } ?? .secondary
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Capsule().fill(accent).frame(width: 3)
+            VStack(alignment: .leading, spacing: 1) {
+                if quote.unavailable {
+                    Text("Message unavailable").font(.caption).italic()
+                } else {
+                    Text(quote.author?.displayName ?? "").font(.caption.weight(.semibold)).foregroundStyle(accent)
+                    Text(quote.text ?? "").font(.caption).lineLimit(2)
+                }
+            }
+            .foregroundStyle(mine ? Color.white.opacity(0.85) : Color.secondary)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .background(mine ? Color.white.opacity(0.18) : Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(quote.unavailable ? "Reply to a message that is no longer available" : "Reply to \(quote.author?.displayName ?? ""): \(quote.text ?? "")")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("chat.reply.\(quote.id)")
     }
 }
 
@@ -395,6 +471,8 @@ private struct NoticeChip: View {
 private struct Composer: View {
     @Binding var draft: String
     @Binding var attachment: ComposerAttachment?
+    @Binding var replyingTo: ChatMessage?
+    let myUserId: String?
     let disabled: Bool
     let onCreatePoll: () -> Void
     let onSend: () -> Void
@@ -402,6 +480,7 @@ private struct Composer: View {
     @State private var showLibrary = false
     @State private var showCamera = false
     @State private var pickError: String?
+    @FocusState private var focused: Bool
 
     private var canSend: Bool { !disabled && (attachment != nil || !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
     private var placeholder: String {
@@ -411,6 +490,7 @@ private struct Composer: View {
 
     var body: some View {
         VStack(spacing: 4) {
+            if let replyingTo { replyBar(replyingTo) }
             if let attachment {
                 HStack(alignment: .top) {
                     Image(uiImage: attachment.preview)
@@ -466,6 +546,7 @@ private struct Composer: View {
                     .padding(.vertical, 9)
                     .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: Radius.bubble, style: .continuous))
                     .disabled(disabled)
+                    .focused($focused)
                     .accessibilityIdentifier("chat.composer")
                     .onChange(of: draft) { _, value in if value.count > 500 { draft = String(value.prefix(500)) } }
                 Button(action: onSend) {
@@ -498,9 +579,40 @@ private struct Composer: View {
             }
         }
         .fullScreenCover(isPresented: $showCamera) { CameraPicker(onImage: attach).ignoresSafeArea() }
+        .onChange(of: replyingTo?.id) { _, id in if id != nil, !disabled { focused = true } }
         .alert("Photo", isPresented: Binding(get: { pickError != nil }, set: { if !$0 { pickError = nil } })) {
             Button("OK") { pickError = nil }
         } message: { Text(pickError ?? "") }
+    }
+
+    /// "Replying to …" above the field, with a way out.
+    private func replyBar(_ message: ChatMessage) -> some View {
+        let quote = ReplyPreview.of(message)
+        let name = message.author.id == myUserId ? "yourself" : message.author.displayName
+        return HStack(spacing: Spacing.s) {
+            Capsule().fill(Color.brandPrimary).frame(width: 3)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Replying to \(name)").font(.caption.weight(.semibold)).foregroundStyle(Color.brandPrimary)
+                Text(quote.text ?? "").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("chat.reply.preview")
+            Spacer(minLength: 0)
+            Button { replyingTo = nil } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+                    .background(Color(.tertiarySystemFill), in: Circle())
+            }
+            .accessibilityLabel("Cancel reply")
+            .accessibilityIdentifier("chat.reply.cancel")
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.vertical, 6)
+        .padding(.horizontal, Spacing.s)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     private func attach(_ data: Data) {

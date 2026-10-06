@@ -104,4 +104,35 @@ final class NearbyModelsTests: XCTestCase {
         let image = try JSONSerialization.jsonObject(with: JSONEncoder().encode(SendMessageRequest.image(mediaId: "abc", caption: "", clientKey: "k2"))) as! [String: Any]
         XCTAssertEqual(image as NSDictionary, ["kind": "IMAGE", "mediaId": "abc", "clientKey": "k2"] as NSDictionary)
     }
+
+    func testRepliesDecodeTheirQuoteOrAnUnavailableOne() throws {
+        let reply = """
+        {"id":"m2","venueId":"v1","author":{"id":"u2","displayName":"ben"},"text":"which side?","replyTo":{"id":"m1","author":{"id":"u1","displayName":"anna"},"kind":"TEXT","text":"found a quiet corner"},"status":"APPROVED","createdAt":"2026-10-06T10:00:00.000Z"}
+        """
+        let message = try JSONDecoder().decode(ChatMessage.self, from: Data(reply.utf8))
+        XCTAssertEqual(message.replyTo, ReplyPreview(id: "m1", author: Author(id: "u1", displayName: "anna"), kind: .text, text: "found a quiet corner"))
+
+        let gone = """
+        {"id":"m3","venueId":"v1","author":{"id":"u2","displayName":"ben"},"text":"what?","replyTo":{"id":"m1","unavailable":true},"status":"APPROVED","createdAt":"2026-10-06T10:00:00.000Z"}
+        """
+        XCTAssertEqual(try JSONDecoder().decode(ChatMessage.self, from: Data(gone.utf8)).replyTo, .gone("m1"))
+    }
+
+    func testReplyRequestsCarryTheAnsweredMessage() throws {
+        let text = try JSONSerialization.jsonObject(with: JSONEncoder().encode(SendMessageRequest.text("yes", replyToId: "m1", clientKey: "k1"))) as! [String: Any]
+        XCTAssertEqual(text as NSDictionary, ["text": "yes", "replyToId": "m1", "clientKey": "k1"] as NSDictionary)
+        let image = try JSONSerialization.jsonObject(with: JSONEncoder().encode(SendMessageRequest.image(mediaId: "abc", caption: nil, replyToId: "m1", clientKey: "k2"))) as! [String: Any]
+        XCTAssertEqual(image as NSDictionary, ["kind": "IMAGE", "mediaId": "abc", "replyToId": "m1", "clientKey": "k2"] as NSDictionary)
+    }
+
+    func testLocalQuotesFollowTheServerRules() {
+        let anna = Author(id: "u1", displayName: "anna")
+        let photo = ChatMessage(id: "p", venueId: "v", author: anna, text: "[Photo]", status: "APPROVED", createdAt: "", kind: .image, caption: "")
+        XCTAssertEqual(ReplyPreview.of(photo).text, "[Photo]")
+        let poll = ChatMessage(id: "q", venueId: "v", author: anna, text: "Poll: Coffee?", status: "APPROVED", createdAt: "", kind: .poll, poll: PollView(id: "pl", question: "Coffee at 4?", options: []))
+        XCTAssertEqual(ReplyPreview.of(poll).text, "Poll: Coffee at 4?")
+        let long = ChatMessage(id: "l", venueId: "v", author: anna, text: String(repeating: "a", count: 300), status: "APPROVED", createdAt: "")
+        XCTAssertEqual(ReplyPreview.of(long).text?.count, 140)
+        XCTAssertEqual(ReplyPreview.of(long).text?.last, "…")
+    }
 }
