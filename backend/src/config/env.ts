@@ -120,6 +120,10 @@ export const envSchema = z
       .refine((v) => /^\d+,\d+,\d+$/.test(v), 'three comma-separated counts'),
     /** SKR sent from the rewards wallet when someone reaches a level (whole tokens; 0 = off). */
     SKR_LEVEL_REWARD: z.coerce.number().min(0).default(5),
+    /** Test funds for a freshly linked wallet on localnet/devnet (never on mainnet); 0 switches each off. */
+    SOLANA_STARTER_SOL: z.coerce.number().min(0).default(0.05),
+    SOLANA_STARTER_USDC: z.coerce.number().min(0).default(20),
+    SOLANA_STARTER_SKR: z.coerce.number().min(0).default(20),
     /** A check-in transaction the wallet did not send within this window is given up. */
     SOLANA_PENDING_TTL_SEC: z.coerce.number().int().positive().default(600),
 

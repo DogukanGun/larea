@@ -1,5 +1,6 @@
 package com.larea.app.solana
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -13,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.AlertDialog
@@ -33,6 +35,7 @@ import com.larea.app.core.format.Base58
 import com.larea.app.ui.components.GroupedCard
 import com.larea.app.ui.components.InlineError
 import com.larea.app.ui.components.ListRow
+import com.larea.app.ui.components.NoteCard
 import com.larea.app.ui.components.Pill
 import com.larea.app.ui.components.PillStyle
 import com.larea.app.ui.components.PrimaryButton
@@ -64,6 +67,13 @@ fun WalletSection(model: WalletViewModel = hiltViewModel()) {
             PrimaryButton("Connect wallet", onClick = model::connect, loading = state.busy, enabled = !state.loading, tag = "solana.wallet.connect")
         }
     } else {
+        state.notice?.let { notice ->
+            NoteCard(
+                Icons.Filled.CardGiftcard,
+                notice,
+                Modifier.padding(horizontal = Spacing.screen).padding(bottom = Spacing.s).clickable(onClick = model::dismissNotice).testTag("solana.wallet.notice"),
+            )
+        }
         GroupedCard {
             ListRow(tag = "solana.wallet.address") {
                 Icon(Icons.Filled.AccountBalanceWallet, contentDescription = null, tint = c.brandPrimary)

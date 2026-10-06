@@ -67,8 +67,10 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.findByName("release")
-            buildConfigField("String", "API_BASE_URL", "\"https://larea.dogukangundogan.com/\"")
-            buildConfigField("String", "WS_URL", "\"wss://larea.dogukangundogan.com/ws\"")
+            // Production server by default; -Plarea.releaseHost=<host> builds against another backend (the demo API).
+            val releaseHost = providers.gradleProperty("larea.releaseHost").getOrElse("larea.dogukangundogan.com")
+            buildConfigField("String", "API_BASE_URL", "\"https://$releaseHost/\"")
+            buildConfigField("String", "WS_URL", "\"wss://$releaseHost/ws\"")
         }
     }
 

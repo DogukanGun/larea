@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { dasApi, type DasApiInterface } from '@metaplex-foundation/digital-asset-standard-api';
 import { getLeafSchemaSerializer, MPL_BUBBLEGUM_PROGRAM_ID, mintV2 } from '@metaplex-foundation/mpl-bubblegum';
-import { addMemo, createIdempotentAssociatedToken, fetchToken, findAssociatedTokenPda, transferTokensChecked } from '@metaplex-foundation/mpl-toolbox';
-import { createNoopSigner, publicKey, signTransaction, type TransactionBuilder, transactionBuilder, type Umi } from '@metaplex-foundation/umi';
+import { addMemo, createIdempotentAssociatedToken, fetchToken, findAssociatedTokenPda, mintTokensTo, transferSol, transferTokensChecked } from '@metaplex-foundation/mpl-toolbox';
+import { createNoopSigner, publicKey, signTransaction, sol, type TransactionBuilder, transactionBuilder, type Umi } from '@metaplex-foundation/umi';
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import bs58 from 'bs58';
 import type { Env } from '../config/env.js';
@@ -16,6 +16,7 @@ import {
   type SolanaClient,
   SolanaUnavailableError,
   type StampMintInput,
+  type StarterFunds,
   TransactionMismatchError,
   type TransferInput,
   type WalletBalances,
@@ -136,6 +137,25 @@ export class RealSolanaClient implements SolanaClient {
       .add(addMemo(umi, { memo: input.memo }))
       .sendAndConfirm(umi, { confirm: { commitment: 'confirmed' } });
     if (result.result.value.err) throw new Error(`custody transfer failed: ${JSON.stringify(result.result.value.err)}`);
+    return bs58.encode(result.signature);
+  }
+
+  async sendStarterFunds(to: string, funds: StarterFunds): Promise<string | null> {
+    if (this.cluster === 'mainnet') return null;
+    const owner = publicKey(to);
+    let builder = transactionBuilder();
+    if (funds.sol > 0) builder = builder.add(transferSol(this.umi, { destination: owner, amount: sol(funds.sol) }));
+    for (const [token, amount] of [['USDC', funds.usdc], ['SKR', funds.skr]] as const) {
+      if (amount <= 0n) continue;
+      const mint = this.mintOf(token);
+      const [ata] = findAssociatedTokenPda(this.umi, { mint, owner });
+      builder = builder
+        .add(createIdempotentAssociatedToken(this.umi, { ata, owner, mint }))
+        .add(mintTokensTo(this.umi, { mint, token: ata, amount, mintAuthority: this.umi.identity }));
+    }
+    if (builder.items.length === 0) return null;
+    const result = await builder.add(addMemo(this.umi, { memo: 'larea:starter' })).sendAndConfirm(this.umi, { confirm: { commitment: 'confirmed' } });
+    if (result.result.value.err) throw new Error(`starter funds failed: ${JSON.stringify(result.result.value.err)}`);
     return bs58.encode(result.signature);
   }
 

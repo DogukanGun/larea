@@ -28,6 +28,19 @@ docker compose -f docker-compose.prod.yml --env-file .env.production exec postgr
 
 `.env.production` holds `NODE_ENV=production`, `OPENAI_API_KEY`, `OPENAI_MODEL=gpt-5-nano`, `OVERPASS_CONTACT=dogukangundogan5@gmail.com` and the secrets. The env validation refuses to start without the OpenAI key or with `ALLOW_MOCK_LOCATIONS=1`. One-time activation after the OpenAI cut-over: `/opt/larea/backend/set-openai-key.sh <OPENAI_API_KEY>` writes the key into the staged env file, rebuilds and restarts the API (the container applies the pending migration on start). The moderator account is `dogukangundogan5@gmail.com`; its generated password is in `/root/larea-moderator-password.txt` on the server (mode 600).
 
+## Demo API for testers and judges
+
+Production refuses simulated locations and makes new accounts wait before trading, which is right for users and wrong for someone evaluating the app from a desk or an emulator. `docker-compose.demo.yml` adds a second API on the same host, in development mode, with its own Postgres, Redis and uploads volume; the production Caddy serves it under `DEMO_DOMAIN` (an A record such as `demo-larea.dogukangundogan.com`, or an sslip.io name). Solana settings are the same devnet keys and mints as production.
+
+```sh
+cd /opt/larea/backend
+cp .env.demo.example .env.demo        # OPENAI_API_KEY and the SOLANA_* values from .env.production, a new JWT secret, PUBLIC_URL
+DOMAIN=larea.dogukangundogan.com DEMO_DOMAIN=demo-larea.dogukangundogan.com POSTGRES_PASSWORD=... \
+  docker compose -f docker-compose.prod.yml -f docker-compose.demo.yml --env-file .env.production up -d --build
+```
+
+Differences from production: `NODE_ENV=development`, `ALLOW_MOCK_LOCATIONS=1`, `MARKET_MIN_ACCOUNT_AGE_HOURS=0`, `LOYALTY_LEVELS=1,2,3` (a tester is a Regular after the first check-in), and no Stripe (USDC deals through the Solana rail only). Moderation stays real. Build the Android app against it with `./gradlew :app:assembleSolanaRelease -Plarea.releaseHost=demo-larea.dogukangundogan.com`. Both APIs share the Caddy container, so `up -d` with the two compose files replaces its command; to go back to production only, run the usual single-file `up -d` again.
+
 ## Age assurance on devices
 
 The apps forward the operating system's age range (Apple Declared Age Range, Google Play Age Signals) to `POST /verification/platform`; nothing but platform, declaration kind and pass/fail is stored. Play Age Signals only returns a range where the law requires it, so where Google has no answer the Android app lets the user confirm 18+ themselves (`platform: "self"`, stored as provider `self-declared`). iOS device builds need the Declared Age Range capability enabled for the App ID `com.dogukangundogan.larea` in the Apple Developer account (the entitlement is already in `ios/Larea/Larea.entitlements`). On a simulator the prompt reports "not available", so simulator testing uses a local backend started with `NODE_ENV=test` and the debug-only launch argument `-LareaTestAgePass 1`. Known limitation: the signal is attested by the app, not by a server-verified token; App Attest / Play Integrity is the planned hardening.

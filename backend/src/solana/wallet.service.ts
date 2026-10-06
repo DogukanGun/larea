@@ -5,15 +5,27 @@ import { InjectEnv } from '../config/inject-env.js';
 import type { Env } from '../config/env.js';
 import { PrismaService } from '../infra/prisma/prisma.service.js';
 import { RedisService } from '../infra/redis/redis.service.js';
+import { TOKEN_DECIMALS, toBaseUnits } from './chain.js';
 import { type SiwsChallenge, SiwsError, verifySiws } from './siws.js';
-import { SOLANA_CLIENT, type SolanaClient, SolanaUnavailableError, type WalletBalances } from './solana.client.js';
+import { SOLANA_CLIENT, type SolanaClient, SolanaUnavailableError, type StarterFunds, type WalletBalances } from './solana.client.js';
 
 const NONCE_TTL_SEC = 300;
+/** How long a link waits for the starter transfer before answering; the transfer still completes. */
+const STARTER_TIMEOUT_MS = 20_000;
+
+/** Whole units of the test funds a link handed out. */
+export interface StarterSummary {
+  sol: number;
+  usdc: number;
+  skr: number;
+}
 
 export interface WalletView {
   address: string;
   linkedAt: string;
   cluster: SolanaClient['cluster'];
+  /** Set by a link: the test funds sent to the wallet (localnet/devnet only), or null when none were. */
+  starter?: StarterSummary | null;
 }
 
 /**
@@ -79,7 +91,42 @@ export class WalletService {
       update: { address: input.address, linkedAt: new Date() },
     });
     this.logger.log({ userId, address: wallet.address }, 'wallet linked');
-    return this.view(wallet);
+    const starter = await this.sendStarter(wallet);
+    return { ...this.view(wallet), starter };
+  }
+
+  /**
+   * Localnet and devnet: a freshly linked wallet gets a little SOL for fees plus test USDC and SKR,
+   * once per linked wallet, so a tester can check in and tip right away without hunting for a faucet.
+   * Never fails the link; on a slow cluster the transfer finishes in the background.
+   */
+  private async sendStarter(wallet: { userId: string; address: string; starterFundedAt: Date | null }): Promise<StarterSummary | null> {
+    const summary: StarterSummary = { sol: this.env.SOLANA_STARTER_SOL, usdc: this.env.SOLANA_STARTER_USDC, skr: this.env.SOLANA_STARTER_SKR };
+    const funds: StarterFunds = { sol: summary.sol, usdc: toBaseUnits(summary.usdc, TOKEN_DECIMALS), skr: toBaseUnits(summary.skr, TOKEN_DECIMALS) };
+    if (this.solana.cluster === 'mainnet' || wallet.starterFundedAt) return null;
+    if (funds.sol <= 0 && funds.usdc <= 0n && funds.skr <= 0n) return null;
+    // Claim first, so two concurrent links never pay twice.
+    const claimed = await this.prisma.wallet.updateMany({
+      where: { userId: wallet.userId, address: wallet.address, starterFundedAt: null },
+      data: { starterFundedAt: new Date() },
+    });
+    if (claimed.count === 0) return null;
+    const send = this.solana.sendStarterFunds(wallet.address, funds).then(
+      (signature) => {
+        if (signature) this.logger.log({ address: wallet.address, signature }, 'starter funds sent');
+        return signature;
+      },
+      async (error: unknown) => {
+        this.logger.warn({ err: error, address: wallet.address }, 'starter funds failed');
+        await this.prisma.wallet
+          .updateMany({ where: { userId: wallet.userId, address: wallet.address }, data: { starterFundedAt: null } })
+          .catch(() => undefined);
+        return null;
+      },
+    );
+    const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), STARTER_TIMEOUT_MS).unref());
+    const outcome = await Promise.race([send, timeout]);
+    return outcome === null ? null : summary;
   }
 
   async get(userId: string): Promise<{ wallet: WalletView | null; balances: WalletBalances | null }> {
