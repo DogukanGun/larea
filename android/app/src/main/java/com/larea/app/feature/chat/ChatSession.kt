@@ -12,6 +12,7 @@ import com.larea.app.core.network.CreatePollRequest
 import com.larea.app.core.network.CreateReportRequest
 import com.larea.app.core.network.LareaApi
 import com.larea.app.core.network.LocationFixBody
+import com.larea.app.core.network.ReplyPreview
 import com.larea.app.core.network.SendMessageRequest
 import com.larea.app.core.network.SendResult
 import com.larea.app.core.network.VoteRequest
@@ -61,6 +62,8 @@ data class ChatState(
     val loading: Boolean = true,
     /** MAIN_ROOM, or REGULARS_ROOM in the Solana build. */
     val room: String = MAIN_ROOM,
+    /** The message the composer is answering, if any. */
+    val replyingTo: ChatMessage? = null,
 ) {
     val isMuted: Boolean get() = Dates.isFuture(mutedUntil)
 }
@@ -166,7 +169,7 @@ class ChatSession(
     /** Shows another room of this place (the Solana build's Regulars room). */
     fun switchRoom(room: String) {
         if (room == _state.value.room) return
-        _state.update { it.copy(room = room, messages = emptyList(), loading = true) }
+        _state.update { it.copy(room = room, messages = emptyList(), loading = true, replyingTo = null) }
         launch { loadHistory() }
     }
 
@@ -188,7 +191,9 @@ class ChatSession(
     private fun handle(event: ServerEvent) {
         when (event) {
             is ServerEvent.Message -> if (event.message.venueId == venueId) add(event.message)
-            is ServerEvent.MessageHidden -> _state.update { s -> s.copy(messages = s.messages.filterNot { it.id == event.messageId }) }
+            is ServerEvent.MessageHidden -> _state.update { s ->
+                s.copy(messages = s.messages.filterNot { it.id == event.messageId }).withQuotesGone { it.id == event.messageId }
+            }
             is ServerEvent.Presence -> if (event.venueId == venueId) _state.update { it.copy(presence = event.count) }
             is ServerEvent.PollUpdate -> if (event.venueId == venueId) {
                 _state.update { s ->
@@ -216,13 +221,19 @@ class ChatSession(
         }
     }
 
+    fun startReply(message: ChatMessage) = _state.update { it.copy(replyingTo = message) }
+
+    fun cancelReply() = _state.update { it.copy(replyingTo = null) }
+
+    /** Sends the draft, answering the message being replied to (if any). */
     fun send(text: String) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
-        val item = PendingMessage(UUID.randomUUID().toString(), trimmed)
-        _state.update { it.copy(pending = it.pending + item) }
+        val target = _state.value.replyingTo
+        val item = PendingMessage(UUID.randomUUID().toString(), trimmed, replyTo = target?.let(ReplyPreview::of))
+        _state.update { it.copy(pending = it.pending + item, replyingTo = null) }
         launch {
-            apiCall { api.send(venueId, SendMessageRequest.text(trimmed, item.id, roomParam())) }
+            apiCall { api.send(venueId, SendMessageRequest.text(trimmed, item.id, roomParam(), target?.id)) }
                 .onSuccess { apply(it, "This message doesn't meet our community guidelines.") }
                 .onFailure { handleSendError(it) }
             removePending(item.id)
@@ -232,13 +243,14 @@ class ChatSession(
     /** Uploads the photo (already downsized on the device), then sends it like any other message. */
     fun sendImage(image: PreparedImage, caption: String?) {
         val trimmed = caption?.trim().orEmpty()
-        val item = PendingMessage(UUID.randomUUID().toString(), trimmed, image, uploading = true)
-        _state.update { it.copy(pending = it.pending + item) }
+        val target = _state.value.replyingTo
+        val item = PendingMessage(UUID.randomUUID().toString(), trimmed, image, uploading = true, replyTo = target?.let(ReplyPreview::of))
+        _state.update { it.copy(pending = it.pending + item, replyingTo = null) }
         launch {
             uploader.upload(image)
                 .onSuccess { media ->
                     _state.update { s -> s.copy(pending = s.pending.map { if (it.id == item.id) it.copy(uploading = false) else it }) }
-                    apiCall { api.send(venueId, SendMessageRequest.image(media.id ?: "", trimmed, item.id, roomParam())) }
+                    apiCall { api.send(venueId, SendMessageRequest.image(media.id ?: "", trimmed, item.id, roomParam(), target?.id)) }
                         .onSuccess { apply(it, "This photo doesn't meet our community guidelines.") }
                         .onFailure { handleSendError(it) }
                 }
@@ -332,7 +344,9 @@ class ChatSession(
         launch {
             apiCall { api.block(author.id) }
                 .onSuccess {
-                    _state.update { s -> s.copy(messages = s.messages.filterNot { it.author.id == author.id }, notice = "${author.displayName} is blocked.") }
+                    _state.update { s ->
+                        s.copy(messages = s.messages.filterNot { it.author.id == author.id }, notice = "${author.displayName} is blocked.").withQuotesGone { it.author?.id == author.id }
+                    }
                 }
                 .onFailure { e -> _state.update { it.copy(notice = e.userMessage()) } }
         }
@@ -364,3 +378,8 @@ class ChatSessionFactory @Inject constructor(
     fun create(venueId: String) = ChatSession(venueId, api, uploader, realtime, location, store)
 }
 
+/** Quotes of a removed message (or of a blocked person) turn into "Message unavailable"; a reply in progress to it is dropped. */
+internal fun ChatState.withQuotesGone(matches: (ReplyPreview) -> Boolean): ChatState = copy(
+    messages = messages.map { m -> m.replyTo?.takeIf { !it.unavailable && matches(it) }?.let { m.copy(replyTo = ReplyPreview.gone(it.id)) } ?: m },
+    replyingTo = replyingTo?.takeIf { target -> messages.any { it.id == target.id } },
+)

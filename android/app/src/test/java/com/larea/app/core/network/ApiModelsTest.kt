@@ -117,4 +117,30 @@ class ApiModelsTest {
         val regulars = LareaJson.encodeToString(SendMessageRequest.serializer(), SendMessageRequest.text("hi", "k1234567", "REGULARS"))
         assertTrue(regulars.contains("\"room\":\"REGULARS\""))
     }
+
+    @Test
+    fun `replies decode their quote or an unavailable one, and send the answered id only when set`() {
+        val reply = decode<ChatMessage>("""{"id":"m2","venueId":"v1","author":{"id":"u2","displayName":"ben"},"text":"which side?","replyTo":{"id":"m1","author":{"id":"u1","displayName":"anna"},"kind":"TEXT","text":"found a quiet corner"},"status":"APPROVED","createdAt":"x"}""")
+        assertEquals(ReplyPreview("m1", Author("u1", "anna"), "TEXT", "found a quiet corner"), reply.replyTo)
+        val gone = decode<ChatMessage>("""{"id":"m3","venueId":"v1","author":{"id":"u2","displayName":"ben"},"text":"what?","replyTo":{"id":"m1","unavailable":true},"createdAt":"x"}""")
+        assertEquals(ReplyPreview.gone("m1"), gone.replyTo)
+        assertNull(decode<ChatMessage>("""{"id":"m4","venueId":"v1","author":{"id":"u1","displayName":"anna"},"text":"hi","createdAt":"x"}""").replyTo)
+
+        val text = LareaJson.parseToJsonElement(LareaJson.encodeToString(SendMessageRequest.serializer(), SendMessageRequest.text("yes", "k1234567", replyToId = "m1"))).jsonObject
+        assertEquals(setOf("text", "clientKey", "replyToId"), text.keys)
+        val image = LareaJson.parseToJsonElement(LareaJson.encodeToString(SendMessageRequest.serializer(), SendMessageRequest.image("abc", null, "k2", replyToId = "m1"))).jsonObject
+        assertEquals("m1", image["replyToId"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `local quotes follow the server rules`() {
+        val anna = Author("u1", "anna")
+        val photo = ChatMessage("p", "v", anna, "[Photo]", createdAt = "x", kindRaw = "IMAGE", caption = "")
+        assertEquals("[Photo]", ReplyPreview.of(photo).text)
+        val poll = ChatMessage("q", "v", anna, "Poll: Coffee?", createdAt = "x", kindRaw = "POLL", poll = PollView("pl", "Coffee at 4?"))
+        assertEquals("Poll: Coffee at 4?", ReplyPreview.of(poll).text)
+        val long = ReplyPreview.of(ChatMessage("l", "v", anna, "a".repeat(300), createdAt = "x"))
+        assertEquals(140, long.text?.length)
+        assertTrue(long.text!!.endsWith("…"))
+    }
 }

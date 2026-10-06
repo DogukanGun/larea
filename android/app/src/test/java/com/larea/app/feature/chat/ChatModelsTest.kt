@@ -79,4 +79,20 @@ class ChatModelsTest {
         assertEquals(1, rows.filterIsInstance<ChatRow.Tip>().size)
         assertEquals(listOf(GroupPosition.Single, GroupPosition.Single), positions(rows).map { it.position })
     }
+
+    @Test
+    fun `quotes of a hidden message or a blocked author turn unavailable, and a reply to it is dropped`() {
+        val parent = message("p", "anna", 0)
+        val reply = message("r", "ben", 10).copy(replyTo = com.larea.app.core.network.ReplyPreview.of(parent))
+        val other = message("o", "cara", 20).copy(replyTo = com.larea.app.core.network.ReplyPreview.of(message("x", "ben", 5)))
+        val state = ChatState(venueId = "v", messages = listOf(reply, other), replyingTo = parent)
+        val after = state.withQuotesGone { it.id == "p" }
+        assertEquals(com.larea.app.core.network.ReplyPreview.gone("p"), after.messages.first { it.id == "r" }.replyTo)
+        assertEquals("x", after.messages.first { it.id == "o" }.replyTo?.id)
+        assertEquals(false, after.messages.first { it.id == "o" }.replyTo?.unavailable)
+        assertNull(after.replyingTo)
+
+        val blocked = ChatState(venueId = "v", messages = listOf(reply, other)).withQuotesGone { it.author?.id == "ben" }
+        assertEquals(true, blocked.messages.first { it.id == "o" }.replyTo?.unavailable)
+    }
 }

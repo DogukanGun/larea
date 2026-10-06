@@ -4,9 +4,10 @@ import com.larea.app.core.format.Dates
 import com.larea.app.core.media.PreparedImage
 import com.larea.app.core.network.ChatMessage
 import com.larea.app.core.network.MessageKind
+import com.larea.app.core.network.ReplyPreview
 
 /** A message on its way to the server, shown dimmed until it comes back. */
-data class PendingMessage(val id: String, val text: String, val image: PreparedImage? = null, val uploading: Boolean = false)
+data class PendingMessage(val id: String, val text: String, val image: PreparedImage? = null, val uploading: Boolean = false, val replyTo: ReplyPreview? = null)
 
 data class SystemNotice(val id: String, val kind: Kind, val text: String) {
     enum class Kind { Blocked, Censored, Warned, Info }

@@ -238,8 +238,35 @@ data class ChatMessage(
     val authorLevel: Int = 0,
     /** "REGULARS" for the Regulars room; null = the main chat. */
     val room: String? = null,
+    /** Set when this message answers another one; absent once that message is deleted. */
+    val replyTo: ReplyPreview? = null,
 ) {
     val kind: MessageKind get() = MessageKind.from(kindRaw)
+}
+
+/** The message a reply answers, as a short quote; `unavailable` when it was removed or its author is blocked. */
+@Serializable
+data class ReplyPreview(
+    val id: String,
+    val author: Author? = null,
+    @SerialName("kind") val kindRaw: String? = null,
+    val text: String? = null,
+    val unavailable: Boolean = false,
+) {
+    companion object {
+        /** The quote this app shows before the server's version arrives (same rules as the server). */
+        fun of(message: ChatMessage): ReplyPreview {
+            val text = when (message.kind) {
+                MessageKind.POLL -> message.poll?.let { "Poll: ${it.question}" } ?: message.text
+                MessageKind.IMAGE -> message.caption?.takeIf { it.isNotEmpty() } ?: "[Photo]"
+                else -> message.text
+            }
+            val short = if (text.length > 140) text.take(139).trimEnd() + "…" else text
+            return ReplyPreview(message.id, message.author, message.kindRaw ?: MessageKind.TEXT.raw, short)
+        }
+
+        fun gone(id: String) = ReplyPreview(id, unavailable = true)
+    }
 }
 
 @Serializable
@@ -259,12 +286,15 @@ data class SendMessageRequest(
     val clientKey: String,
     /** "REGULARS" to post in the Regulars room; null = the main chat. */
     val room: String? = null,
+    /** The message this one answers (same place and room). */
+    val replyToId: String? = null,
 ) {
     companion object {
-        fun text(text: String, clientKey: String, room: String? = null) = SendMessageRequest(text = text, clientKey = clientKey, room = room)
+        fun text(text: String, clientKey: String, room: String? = null, replyToId: String? = null) =
+            SendMessageRequest(text = text, clientKey = clientKey, room = room, replyToId = replyToId)
 
-        fun image(mediaId: String, caption: String?, clientKey: String, room: String? = null) =
-            SendMessageRequest(kind = "IMAGE", text = caption?.takeIf { it.isNotEmpty() }, mediaId = mediaId, clientKey = clientKey, room = room)
+        fun image(mediaId: String, caption: String?, clientKey: String, room: String? = null, replyToId: String? = null) =
+            SendMessageRequest(kind = "IMAGE", text = caption?.takeIf { it.isNotEmpty() }, mediaId = mediaId, clientKey = clientKey, room = room, replyToId = replyToId)
     }
 }
 

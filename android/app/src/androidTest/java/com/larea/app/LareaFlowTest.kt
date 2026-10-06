@@ -17,10 +17,13 @@ import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeRight
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
@@ -240,6 +243,19 @@ class LareaFlowTest {
         compose.onAllNodes(hasText("Ramen"), useUnmergedTree = true).onFirst().performClick()
         waitForText("100%", timeoutMs = 15_000)
         snapshot("chat-poll")
+
+        // Replies: long-press a message → Reply → send; the answer shows a quote of it.
+        compose.onAllNodes(hasText("Anyone want to get food?"), useUnmergedTree = true).onFirst().performTouchInput { longClick() }
+        tap("chat.menu.reply")
+        waitFor(hasTestTag("chat.reply.preview"), message = "the reply bar did not appear")
+        type("chat.composer", "Ramen it is")
+        tap("chat.send")
+        waitFor(tagPrefix("chat.reply.", except = "chat.reply.preview"), timeoutMs = 15_000, message = "the reply has no quote")
+        snapshot("chat-reply")
+        // Swiping a message to the right starts a reply too; the bar can be dismissed.
+        compose.onAllNodes(hasText("Ramen it is"), useUnmergedTree = true).onFirst().performTouchInput { swipeRight() }
+        waitFor(hasTestTag("chat.reply.preview"), message = "swiping did not start a reply")
+        tap("chat.reply.cancel")
 
         // Moderation: mild profanity is masked, a threat is blocked.
         type("chat.composer", "this is damn good")

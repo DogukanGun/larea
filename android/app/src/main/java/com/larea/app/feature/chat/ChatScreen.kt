@@ -29,6 +29,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.BarChart
@@ -69,7 +70,9 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -81,6 +84,7 @@ import com.larea.app.core.media.PreparedImage
 import com.larea.app.core.network.Author
 import com.larea.app.core.network.ChatMessage
 import com.larea.app.core.network.ImageAttachment
+import com.larea.app.core.network.ReplyPreview
 import com.larea.app.core.realtime.ConnectionState
 import com.larea.app.solana.LocalSolanaUi
 import com.larea.app.ui.components.Banner
@@ -119,7 +123,9 @@ fun ChatScreen(session: ChatSession, venueName: String, onLeft: () -> Unit, onBa
     var showMembers by remember { mutableStateOf(false) }
     var showCreatePoll by remember { mutableStateOf(false) }
     var tipping by remember { mutableStateOf<Author?>(null) }
+    var highlightedId by remember { mutableStateOf<String?>(null) }
     val solana = LocalSolanaUi.current
+    fun replyAction(message: ChatMessage) = MenuAction("Reply", Icons.AutoMirrored.Filled.Reply, tag = "chat.menu.reply") { session.startReply(message) }
     fun othersActions(message: ChatMessage) = listOfNotNull(
         if (solana.enabled) MenuAction("Tip ${message.author.displayName}", Icons.Filled.Paid) { tipping = message.author } else null,
         MenuAction("Report", Icons.Filled.Flag) { reporting = message },
@@ -145,6 +151,18 @@ fun ChatScreen(session: ChatSession, venueName: String, onLeft: () -> Unit, onBa
         listState.animateScrollToItem(0)
     }
     BackHandler(onBack = onBack)
+
+    /** Brings the answered message into view and flashes it; nothing happens when it isn't loaded. */
+    fun jumpTo(messageId: String) {
+        val index = rows.indexOfFirst { it.key == messageId }
+        if (index < 0) return
+        scope.launch {
+            listState.animateScrollToItem(index)
+            highlightedId = messageId
+            delay(1200)
+            if (highlightedId == messageId) highlightedId = null
+        }
+    }
 
     val context = LocalContext.current
     fun attach(uri: Uri?) {
@@ -203,9 +221,16 @@ fun ChatScreen(session: ChatSession, venueName: String, onLeft: () -> Unit, onBa
                                     MessageRow(
                                         row.message, row.position, row.showHeader && !mine, mine,
                                         onOpenImage = { viewing = it },
-                                        onLongPress = if (mine) null else ({ menuFor = row.message.id }),
+                                        onLongPress = { menuFor = row.message.id },
+                                        onReply = { session.startReply(row.message) },
+                                        onQuote = ::jumpTo,
+                                        highlighted = highlightedId == row.message.id,
                                     )
-                                    MessageMenu(expanded = menuFor == row.message.id, onDismiss = { menuFor = null }, items = othersActions(row.message))
+                                    MessageMenu(
+                                        expanded = menuFor == row.message.id,
+                                        onDismiss = { menuFor = null },
+                                        items = listOf(replyAction(row.message)) + if (mine) emptyList() else othersActions(row.message),
+                                    )
                                 }
                             }
                             is ChatRow.Poll -> {
@@ -218,7 +243,7 @@ fun ChatScreen(session: ChatSession, venueName: String, onLeft: () -> Unit, onBa
                                         MessageMenu(
                                             expanded = menuFor == message.id,
                                             onDismiss = { menuFor = null },
-                                            items = if (mine) {
+                                            items = listOf(replyAction(message)) + if (mine) {
                                                 if (poll.isClosed()) emptyList() else listOf(MenuAction("Close poll", Icons.Filled.StopCircle) { session.closePoll(message.id) })
                                             } else {
                                                 othersActions(message)
@@ -234,9 +259,9 @@ fun ChatScreen(session: ChatSession, venueName: String, onLeft: () -> Unit, onBa
                             is ChatRow.Pending -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
                                 val image = row.pending.image
                                 if (image != null) {
-                                    ImageBubble(image.jpeg, image.width.toFloat() / image.height.coerceAtLeast(1), row.pending.text, mine = true, GroupPosition.Single, pending = true, uploading = row.pending.uploading)
+                                    ImageBubble(image.jpeg, image.width.toFloat() / image.height.coerceAtLeast(1), row.pending.text, mine = true, GroupPosition.Single, pending = true, uploading = row.pending.uploading, replyTo = row.pending.replyTo)
                                 } else {
-                                    Bubble(row.pending.text, mine = true, GroupPosition.Single, pending = true)
+                                    Bubble(row.pending.text, mine = true, GroupPosition.Single, pending = true, replyTo = row.pending.replyTo)
                                 }
                             }
                         }
@@ -250,6 +275,9 @@ fun ChatScreen(session: ChatSession, venueName: String, onLeft: () -> Unit, onBa
             onDraftChange = { draft = it.take(500) },
             attachment = attachment,
             onRemoveAttachment = { attachment = null },
+            replyingTo = state.replyingTo,
+            myUserId = state.myUserId,
+            onCancelReply = session::cancelReply,
             muted = state.isMuted,
             hasCamera = hasCamera,
             onLibrary = { libraryPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
@@ -315,7 +343,7 @@ fun ChatScreen(session: ChatSession, venueName: String, onLeft: () -> Unit, onBa
     }
 }
 
-data class MenuAction(val title: String, val icon: ImageVector, val destructive: Boolean = false, val onClick: () -> Unit)
+data class MenuAction(val title: String, val icon: ImageVector, val destructive: Boolean = false, val tag: String? = null, val onClick: () -> Unit)
 
 @Composable
 fun MessageMenu(expanded: Boolean, onDismiss: () -> Unit, items: List<MenuAction>) {
@@ -326,6 +354,7 @@ fun MessageMenu(expanded: Boolean, onDismiss: () -> Unit, items: List<MenuAction
                 text = { Text(item.title, color = if (item.destructive) c.danger else c.text) },
                 leadingIcon = { Icon(item.icon, contentDescription = null, tint = if (item.destructive) c.danger else c.secondaryText) },
                 onClick = { onDismiss(); item.onClick() },
+                modifier = if (item.tag != null) Modifier.testTag(item.tag) else Modifier,
             )
         }
     }
@@ -337,6 +366,9 @@ private fun Composer(
     onDraftChange: (String) -> Unit,
     attachment: PreparedImage?,
     onRemoveAttachment: () -> Unit,
+    replyingTo: ChatMessage?,
+    myUserId: String?,
+    onCancelReply: () -> Unit,
     muted: Boolean,
     hasCamera: Boolean,
     onLibrary: () -> Unit,
@@ -362,6 +394,7 @@ private fun Composer(
             .imePadding()
             .padding(horizontal = Spacing.m, vertical = Spacing.s),
     ) {
+        if (replyingTo != null) ReplyBar(replyingTo, isMine = replyingTo.author.id == myUserId, onCancel = onCancelReply)
         if (attachment != null) {
             Box(Modifier.size(72.dp).testTag("chat.attach.preview")) {
                 AsyncImage(attachment.jpeg, contentDescription = "Photo to send", contentScale = ContentScale.Crop, modifier = Modifier.size(72.dp).clip(RoundedCornerShape(Radius.field)))
@@ -417,6 +450,36 @@ private fun Composer(
                 modifier = Modifier.align(Alignment.End),
             )
         }
+    }
+}
+
+/** "Replying to …" above the field, with a way out. */
+@Composable
+private fun ReplyBar(message: ChatMessage, isMine: Boolean, onCancel: () -> Unit) {
+    val c = Larea.colors
+    val quote = ReplyPreview.of(message)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(c.grouped, RoundedCornerShape(Radius.field))
+            .padding(horizontal = Spacing.s, vertical = 6.dp),
+    ) {
+        Box(Modifier.size(width = 3.dp, height = 32.dp).background(c.brandPrimary, RoundedCornerShape(2.dp)))
+        Column(Modifier.weight(1f).testTag("chat.reply.preview")) {
+            Text("Replying to ${if (isMine) "yourself" else message.author.displayName}", style = LareaType.caption.copy(fontWeight = FontWeight.SemiBold), color = c.brandPrimary)
+            Text(quote.text.orEmpty(), style = LareaType.caption, color = c.secondaryText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(28.dp)
+                .background(c.fill, CircleShape)
+                .clickable(onClick = onCancel)
+                .semantics { contentDescription = "Cancel reply" }
+                .testTag("chat.reply.cancel"),
+        ) { Icon(Icons.Filled.Close, contentDescription = null, tint = c.secondaryText, modifier = Modifier.size(14.dp)) }
     }
 }
 
