@@ -59,14 +59,21 @@ const rules = [
   ["Stored in Germany.", "Accounts, chats and photos are stored on our own server in Nuremberg. To moderate them, text and photos are checked by OpenAI, which doesn't train on them."],
 ];
 
-function StoreCard({ label, name, href }: { label: string; name: string; href: string | null }) {
+function StoreCard({ label, name, href, cta = "Get it →" }: { label: string; name: string; href: string | null; cta?: string }) {
   const inner = (
     <>
       <small>{label}</small>
       <b>{name}</b>
-      <em>{href ? "Get it →" : "Coming soon"}</em>
+      <em>{href ? cta : "Coming soon"}</em>
     </>
   );
+  if (href?.startsWith("/")) {
+    return (
+      <Link className="store" href={href}>
+        {inner}
+      </Link>
+    );
+  }
   return href ? (
     <a className="store" href={href} target="_blank" rel="noreferrer">
       {inner}
@@ -185,6 +192,14 @@ export default function Home() {
                   phone with a Solana wallet.
                 </p>
                 <p className="note">Live on Solana devnet · mainnet after review</p>
+                <div className="hero__actions" style={{ marginTop: 24 }}>
+                  <Link className="btn btn--primary" href="/try">
+                    Try the APK
+                  </Link>
+                  <a className="btn btn--ghost" href={site.repo} target="_blank" rel="noreferrer">
+                    Source on GitHub
+                  </a>
+                </div>
               </div>
               <div className="reveal" style={{ "--d": 2 } as React.CSSProperties}>
                 <Stamp />
@@ -268,7 +283,12 @@ export default function Home() {
             <div className="stores">
               <StoreCard label="iPhone" name="App Store" href={site.links.ios} />
               <StoreCard label="Android" name="Google Play" href={site.links.android} />
-              <StoreCard label="Solana Mobile" name="dApp Store" href={site.links.solanaDappStore} />
+              <StoreCard
+                label="Solana Mobile"
+                name={site.links.solanaDappStore ? "dApp Store" : "Android APK"}
+                href={site.links.solanaDappStore ?? "/try"}
+                cta={site.links.solanaDappStore ? "Get it →" : "Download →"}
+              />
             </div>
             <a className="closing__mail" href={`mailto:${site.email}?subject=Larea%20beta`}>
               Join the beta: {site.email}

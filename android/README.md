@@ -18,6 +18,12 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 ./gradlew :app:testPlayDebugUnitTest :app:testSolanaDebugUnitTest   # JVM + Robolectric unit tests (mirror ios/LareaTests)
 ```
 
+Release builds talk to `https://larea.dogukangundogan.com` and are signed from `android/keystore.properties` (gitignored; `storeFile`, `storePassword`, `keyAlias`, `keyPassword`). Without that file they come out unsigned. Keep the keystore safe: the dApp Store listing is tied to it.
+
+```sh
+./gradlew :app:assembleSolanaRelease   # → app/build/outputs/apk/solana/release/app-solana-release.apk (published as larea-solana.apk)
+```
+
 Start the backend with `NODE_ENV=test MARKET_PAYMENTS_ENABLED=1 MEDIA_DISK_RESERVE_BYTES=0 pnpm start:dev` in `../backend` (add `PORT=3001 PUBLIC_URL=http://localhost:3001` when you move it). Media URLs the local backend announces as `localhost` are rewritten to the emulator's host alias automatically (`MediaUrls`).
 
 Debug-only launch extras (the counterparts of the iOS `-Larea…` launch arguments): `LareaTestAgePass` (age check through the backend's test-only shortcut), `LareaTestSeedImage` ("Use test image" in photo menus), `LareaResetState` (sign out on launch):

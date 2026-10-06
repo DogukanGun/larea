@@ -9,6 +9,14 @@ export const site = {
     process.env.NEXT_PUBLIC_SITE_URL ??
     (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000"),
   email: "dogukangundogan5@gmail.com",
+  /** Source code; releases carry the Android APKs. */
+  repo: "https://github.com/DogukanGun/larea",
+  /** The Solana build as a direct download (always the newest GitHub release). */
+  apk: {
+    url: "https://github.com/DogukanGun/larea/releases/latest/download/larea-solana.apk",
+    release: "https://github.com/DogukanGun/larea/releases/latest",
+    sizeMb: 42,
+  },
   /** Store links: null shows "Coming soon". */
   links: {
     ios: null as string | null,

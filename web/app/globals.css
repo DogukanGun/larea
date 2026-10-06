@@ -1585,6 +1585,13 @@ a.store:hover {
   text-underline-offset: 3px;
 }
 
+.prose a.btn {
+  color: var(--sunny-ink);
+  text-decoration: none;
+  white-space: normal;
+  text-align: center;
+}
+
 .prose table {
   width: 100%;
   border-collapse: collapse;
