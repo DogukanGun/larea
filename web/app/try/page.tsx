@@ -54,12 +54,12 @@ export default function TryPage() {
           Use a wallet with Mobile Wallet Adapter: the Seeker&apos;s built-in wallet, Phantom or Solflare. Switch it to{" "}
           <b>devnet</b> (in Phantom: Settings → Developer settings → Testnet mode → Solana Devnet).
         </li>
-        <li>
-          Get a little devnet SOL for network fees from <a href="https://faucet.solana.com">faucet.solana.com</a>, and devnet
-          USDC from <a href="https://faucet.circle.com">faucet.circle.com</a> (choose Solana Devnet) if you want to tip or buy
-          in the market.
-        </li>
         <li>In Larea, open Profile → Wallet → Connect wallet and approve Sign In With Solana in your wallet.</li>
+        <li>
+          The first time you link a wallet, Larea sends it a welcome gift: a little devnet SOL for fees, 20 test USDC and 20
+          test SKR, so you can check in, tip and trade right away. Need more SOL? Use{" "}
+          <a href="https://faucet.solana.com">faucet.solana.com</a>.
+        </li>
       </ol>
 
       <h2 id="walkthrough">What to try</h2>

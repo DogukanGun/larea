@@ -4,7 +4,7 @@ Location-based group chat. People who are physically at a predefined place can t
 
 ## Try it
 
-**Android (Solana build, devnet):** download the signed APK from the [latest release](https://github.com/DogukanGun/larea/releases/latest) ([direct link](https://github.com/DogukanGun/larea/releases/latest/download/larea-solana.apk)) and follow the [tester guide](https://web-steel-one-6p2b40mh9g.vercel.app/try): install, switch your wallet (Seeker wallet, Phantom or Solflare) to devnet, connect it in Profile → Wallet, then check in at any real place near you, chat, reply, tip and trade in USDC. The APK talks to the test server at `larea.dogukangundogan.com`.
+The Solana build is a signed APK for any Android phone, on devnet: download it from the [latest release](https://github.com/DogukanGun/larea/releases/latest) and follow the five-minute walkthrough in [Larea on Solana Mobile](#larea-on-solana-mobile-clock-in-hackathon) below, or the [tester guide](https://web-steel-one-6p2b40mh9g.vercel.app/try) on the website.
 
 ## Repository
 
