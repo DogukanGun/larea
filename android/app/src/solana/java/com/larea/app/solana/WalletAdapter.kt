@@ -59,6 +59,8 @@ class WalletAdapter @Inject constructor() {
     /** Signs transactions Larea's backend prepared; returns the signed bytes (the backend submits them). */
     suspend fun signTransactions(transactions: List<ByteArray>): List<ByteArray> {
         val result = adapter.transact(sender()) { signTransactions(transactions.toTypedArray()).signedPayloads.toList() }
+        // The wallet's own answer, for when a signature never comes back (wrong network, declined, …).
+        if (result !is TransactionResult.Success) android.util.Log.w("LareaWallet", "signTransactions: $result", (result as? TransactionResult.Failure)?.e)
         return when (result) {
             is TransactionResult.Success -> result.payload
             is TransactionResult.NoWalletFound -> throw WalletException(NO_WALLET)

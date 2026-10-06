@@ -103,17 +103,16 @@ export class RealSolanaClient implements SolanaClient {
     const mint = this.mintOf(input.token);
     const [source] = findAssociatedTokenPda(this.umi, { mint, owner: payer.publicKey });
     const [destination] = findAssociatedTokenPda(this.umi, { mint, owner: publicKey(input.to) });
-    const built = await transactionBuilder()
-      .add(createIdempotentAssociatedToken(this.umi, { payer, ata: destination, owner: publicKey(input.to), mint }))
-      .add(transferTokensChecked(this.umi, { source, mint, destination, authority: payer, amount: input.amount, decimals: TOKEN_DECIMALS }))
-      .add(addMemo(this.umi, { memo: input.memo }))
-      .setFeePayer(payer)
-      .buildWithLatestBlockhash(this.umi);
-    // Nothing for Larea to sign: the sender's wallet is the only signer.
-    return {
-      transaction: Buffer.from(this.umi.transactions.serialize(built)).toString('base64'),
-      messageHash: hashMessage(built.serializedMessage),
-    };
+    // Larea co-signs the memo. A transaction that already carries someone else's signature is left
+    // exactly as built by wallets (some add their own priority-fee instructions to transactions they
+    // sign alone), so what lands is what Larea prepared and checked.
+    return this.prepare(
+      transactionBuilder()
+        .add(createIdempotentAssociatedToken(this.umi, { payer, ata: destination, owner: publicKey(input.to), mint }))
+        .add(transferTokensChecked(this.umi, { source, mint, destination, authority: payer, amount: input.amount, decimals: TOKEN_DECIMALS }))
+        .add(addMemo(this.umi, { memo: input.memo }).addRemainingAccounts({ signer: this.umi.identity, isWritable: false }))
+        .setFeePayer(payer),
+    );
   }
 
   custodyAddress(wallet: CustodyWallet): string | null {

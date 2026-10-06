@@ -60,6 +60,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -301,7 +302,7 @@ private fun PanelHeader(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.s), modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.l)) {
             val venue = state.selectedVenue
             if (venue != null) {
-                Text(venue.name, style = LareaType.headline, color = c.text, maxLines = 1, modifier = Modifier.weight(1f))
+                Text(venue.name, style = LareaType.headline, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             } else {
                 Box(Modifier.size(8.dp).background(if (state.locating) c.secondaryText else c.success, CircleShape))
                 Text(
@@ -427,7 +428,7 @@ private fun VenueRow(venue: NearbyVenue, modifier: Modifier = Modifier) {
     ) {
         VenueIcon(venue.category, dimmed = !venue.eligible)
         Column(verticalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.weight(1f)) {
-            Text(venue.name, style = LareaType.headline, color = c.text, maxLines = 1)
+            Text(venue.name, style = LareaType.headline, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(listOfNotNull(venue.category.label, venue.address).joinToString(" · "), style = LareaType.subheadline, color = c.secondaryText, maxLines = 1)
             Text("${venue.memberCount} here · ${venue.distanceText}", style = LareaType.caption, color = c.secondaryText)
         }

@@ -88,11 +88,20 @@ class MapController {
     fun show(lat: Double, lng: Double, spanM: Double, animated: Boolean = true) {
         val move = {
             val map = map
-            if (map != null) {
+            if (map != null && widthPx > 0 && heightPx > 0) {
+                // Same scale as MapKit's region: a box of `spanM` around the point, fitted into the part of
+                // the map the bottom panel leaves uncovered. MapLibre does the projection maths, so the
+                // point always lands in the middle of the visible part whatever the screen density.
                 val half = spanM.coerceIn(100.0, 2_000_000.0) / 2
-                // Same scale as MapKit's region: the span fills the narrower side of the map (the width, in
-                // portrait). Then move the target south so the point sits in the middle of the part the
-                // bottom panel leaves uncovered.
+                val dLat = half / METERS_PER_DEGREE
+                val dLng = half / (METERS_PER_DEGREE * cos(Math.toRadians(lat)).coerceAtLeast(0.01))
+                val bounds = LatLngBounds.from((lat + dLat).coerceAtMost(85.0), lng + dLng, (lat - dLat).coerceAtLeast(-85.0), lng - dLng)
+                val coveredPx = (heightPx * coveredFraction.coerceIn(0f, 0.7f)).toInt()
+                val update = CameraUpdateFactory.newLatLngBounds(bounds, 0, 0, 0, coveredPx)
+                if (animated) map.animateCamera(update, 450) else map.moveCamera(update)
+            } else if (map != null) {
+                // Not laid out yet: no size to fit into, so estimate the zoom from the span.
+                val half = spanM.coerceIn(100.0, 2_000_000.0) / 2
                 val sidePx = minOf(widthPx, heightPx).takeIf { it > 0 } ?: 1080
                 val wanted = sidePx / (2 * half)
                 // Web Mercator with 512-pixel tiles in physical pixels (what MapLibre Android uses); computed
