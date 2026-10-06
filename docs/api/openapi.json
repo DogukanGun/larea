@@ -2808,6 +2808,10 @@
             "type": "string",
             "description": "Upload id for IMAGE messages"
           },
+          "replyToId": {
+            "type": "string",
+            "description": "Answer this message (same place and room); the reply shows a short quote of it"
+          },
           "clientKey": {
             "type": "string",
             "description": "Client-generated idempotency key (e.g. a UUID); resending with the same key returns the original result"

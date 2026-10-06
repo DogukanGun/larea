@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 import { MEDIA_ID_RE } from '../../media/media.types.js';
 import { MAX_MESSAGE_LENGTH } from '../../moderation/rules.js';
 
@@ -25,6 +25,11 @@ export class SendMessageDto {
   @ValidateIf((o: SendMessageDto) => o.kind === 'IMAGE')
   @Matches(MEDIA_ID_RE, { message: 'mediaId must be an upload id.' })
   mediaId?: string;
+
+  @ApiPropertyOptional({ description: 'Answer this message (same place and room); the reply shows a short quote of it' })
+  @IsOptional()
+  @IsUUID('all', { message: 'replyToId must be a message id.' })
+  replyToId?: string;
 
   @ApiProperty({ description: 'Client-generated idempotency key (e.g. a UUID); resending with the same key returns the original result' })
   @IsString()

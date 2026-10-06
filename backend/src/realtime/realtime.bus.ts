@@ -6,10 +6,11 @@ import type { ServerEvent } from './protocol.js';
 
 const CHANNEL = 'rt:events';
 
-/** Narrows a venue fan-out to some people on one app build (the Regulars room). */
+/** Narrows a venue fan-out to some people, optionally on one app build (the Regulars room). */
 export interface Audience {
   userIds: string[];
-  build: string;
+  /** Only sockets of this app build; any build when absent. */
+  build?: string;
 }
 
 interface Envelope {
@@ -78,7 +79,7 @@ export class RealtimeBus implements OnModuleInit, OnModuleDestroy {
     const payload = envelope.event ? JSON.stringify(envelope.event) : null;
     for (const conn of conns) {
       if (excluded.has(conn.userId)) continue;
-      if (audience && (conn.build !== audience.build || !audience.userIds.has(conn.userId))) continue;
+      if (audience && ((audience.build && conn.build !== audience.build) || !audience.userIds.has(conn.userId))) continue;
       if (envelope.close) {
         conn.socket.close(envelope.close.code, envelope.close.reason);
         continue;

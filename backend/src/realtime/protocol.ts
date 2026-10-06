@@ -63,6 +63,11 @@ export interface ChatTipView {
   signature: string | null;
 }
 
+/** The message a reply answers, as a short quote; `unavailable` when it was removed or its author is blocked for this viewer. */
+export type ChatReplyView =
+  | { id: string; author: { id: string; displayName: string }; kind: 'TEXT' | 'IMAGE' | 'POLL'; text: string; unavailable?: undefined }
+  | { id: string; unavailable: true };
+
 export interface ChatMessageView {
   id: string;
   venueId: string;
@@ -81,6 +86,8 @@ export interface ChatMessageView {
   room?: 'REGULARS';
   /** The author's loyalty level at this place (1 Visitor … 4 Legend); absent when none. */
   authorLevel?: number;
+  /** Set when this message answers another one in the same room; absent once that message is deleted. */
+  replyTo?: ChatReplyView;
   status: 'APPROVED' | 'CENSORED';
   createdAt: string;
 }

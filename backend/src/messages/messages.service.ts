@@ -15,7 +15,7 @@ import { MAX_CAPTION_LENGTH, normalizeText } from '../moderation/rules.js';
 import { POLL_INCLUDE, type PollRow, toPollView } from '../polls/poll-view.js';
 import { PresenceService } from '../presence/presence.service.js';
 import { formatUnits } from '../solana/units.js';
-import type { ChatMessageView } from '../realtime/protocol.js';
+import type { ChatMessageView, ChatReplyView } from '../realtime/protocol.js';
 import { RealtimeBus } from '../realtime/realtime.bus.js';
 import { VenuesService } from '../venues/venues.service.js';
 
@@ -25,6 +25,8 @@ const CENSOR_NOTICE = 'Part of your message was masked because it goes against t
 const WARN_NOTICE = 'Please keep it respectful. Repeated issues can limit your ability to chat.';
 /** What clients that predate photo messages show. */
 export const IMAGE_FALLBACK_TEXT = '[Photo]';
+/** How much of the answered message a reply quotes. */
+export const REPLY_QUOTE_LENGTH = 140;
 
 export interface SendResult {
   status: 'approved' | 'censored' | 'blocked';
@@ -37,6 +39,12 @@ export type MessageRow = Message & {
   media?: MediaSummary | null;
   poll?: PollRow | null;
   tip?: (Tip & { to: { id: string; displayName: string } }) | null;
+  replyTo?: ReplyParentRow | null;
+};
+
+type ReplyParentRow = Pick<Message, 'id' | 'authorId' | 'kind' | 'status' | 'text'> & {
+  author: { id: string; displayName: string };
+  poll: { question: string } | null;
 };
 
 export const MESSAGE_INCLUDE = {
@@ -44,6 +52,17 @@ export const MESSAGE_INCLUDE = {
   media: { select: MEDIA_SUMMARY_SELECT },
   poll: { include: POLL_INCLUDE },
   tip: { include: { to: { select: { id: true, displayName: true } } } },
+  replyTo: {
+    select: {
+      id: true,
+      authorId: true,
+      kind: true,
+      status: true,
+      text: true,
+      author: { select: { id: true, displayName: true } },
+      poll: { select: { question: true } },
+    },
+  },
 } as const;
 
 export interface SendInput {
@@ -51,6 +70,7 @@ export interface SendInput {
   room?: ChatRoom;
   text?: string;
   mediaId?: string;
+  replyToId?: string;
   clientKey: string;
 }
 
@@ -91,6 +111,28 @@ export class MessagesService {
     if (m.kind === 'TIP' && m.tip) {
       view.tip = { id: m.tip.id, token: m.tip.token, amount: formatUnits(m.tip.amount), to: m.tip.to, signature: m.tip.signature };
     }
+    if (m.replyTo) view.replyTo = this.toReplyView(m.replyTo);
+    return view;
+  }
+
+  /** The quote a reply shows; `hiddenAuthors` are people the viewer has a block with. */
+  private toReplyView(parent: ReplyParentRow, hiddenAuthors: readonly string[] = []): ChatReplyView {
+    const visible = parent.status === 'APPROVED' || parent.status === 'CENSORED';
+    if (!visible || parent.kind === 'TIP' || hiddenAuthors.includes(parent.authorId)) return { id: parent.id, unavailable: true };
+    const text =
+      parent.kind === 'POLL' && parent.poll ? `Poll: ${parent.poll.question}` : parent.kind === 'IMAGE' && parent.text === IMAGE_FALLBACK_TEXT ? IMAGE_FALLBACK_TEXT : parent.text;
+    return {
+      id: parent.id,
+      author: { id: parent.author.id, displayName: parent.author.displayName },
+      kind: parent.kind,
+      text: text.length > REPLY_QUOTE_LENGTH ? `${text.slice(0, REPLY_QUOTE_LENGTH - 1).trimEnd()}…` : text,
+    };
+  }
+
+  /** The message as one viewer sees it: quotes of people they have a block with are unavailable. */
+  private toViewFor(m: MessageRow, blocked: readonly string[]): ChatMessageView {
+    const view = this.toView(m);
+    if (m.replyTo && blocked.includes(m.replyTo.authorId)) view.replyTo = { id: m.replyTo.id, unavailable: true };
     return view;
   }
 
@@ -121,8 +163,14 @@ export class MessagesService {
     const authorLevel = await this.loyalty.level(user.id, venueId);
     if (room === 'REGULARS') this.assertRegular(authorLevel);
 
+    const parent = input.replyToId ? await this.replyTarget(user.id, venueId, room, input.replyToId) : null;
     const venue = await this.venues.getActive(venueId);
     const recent = await this.recentContext(venueId, room);
+    // The classifier judges a reply together with what it answers.
+    if (parent && !recent.some((r) => r.text === parent.text && r.displayName === parent.author.displayName)) {
+      recent.unshift({ displayName: parent.author.displayName, text: parent.text });
+      if (recent.length > 5) recent.pop();
+    }
     const media = isImage ? await this.media.findUploaded(input.mediaId!, user.id) : null;
 
     let decision: ModerationDecision;
@@ -161,6 +209,7 @@ export class MessagesService {
           mediaId: media?.id ?? null,
           room,
           authorLevel,
+          replyToId: parent?.id ?? null,
           text: media ? shownText || IMAGE_FALLBACK_TEXT : shownText,
           originalText: status === 'CENSORED' ? text : status === 'BLOCKED' ? text : null,
           status,
@@ -201,6 +250,20 @@ export class MessagesService {
     }
   }
 
+  /** A message that can be answered: visible, in this place and room, not a tip, and not by someone the sender has a block with. */
+  private async replyTarget(userId: string, venueId: string, room: ChatRoom, messageId: string) {
+    const parent = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: { id: true, venueId: true, room: true, status: true, kind: true, authorId: true, text: true, author: { select: { displayName: true } } },
+    });
+    const visible = parent && (parent.status === 'APPROVED' || parent.status === 'CENSORED');
+    if (!parent || !visible || parent.venueId !== venueId || parent.room !== room || parent.kind === 'TIP') {
+      throw notFound('That message is no longer available.');
+    }
+    if ((await this.blocks.blockset(userId)).includes(parent.authorId)) throw notFound('That message is no longer available.');
+    return parent;
+  }
+
   /** Only Regulars (level 2+) read and write in a place's Regulars room. */
   assertRegular(level: number): void {
     if (level < REGULAR) {
@@ -223,7 +286,17 @@ export class MessagesService {
   async publish(authorId: string, message: MessageRow): Promise<void> {
     const excluded = await this.blocks.blockset(authorId);
     const audience = message.room === 'REGULARS' ? { userIds: await this.loyalty.regularsAt(message.venueId), build: 'solana' } : undefined;
-    this.bus.toVenue(message.venueId, { type: 'message', message: this.toView(message) }, excluded, audience);
+    const view = this.toView(message);
+    // People with a block against the quoted author get the reply without its quote.
+    const quoted = message.replyTo && view.replyTo && !view.replyTo.unavailable ? message.replyTo.authorId : null;
+    const quoteHidden = quoted
+      ? (await this.blocks.blockset(quoted)).filter((id) => !excluded.includes(id) && (!audience || audience.userIds.includes(id)))
+      : [];
+    this.bus.toVenue(message.venueId, { type: 'message', message: view }, [...excluded, ...quoteHidden], audience);
+    if (quoteHidden.length > 0) {
+      const masked: ChatMessageView = { ...view, replyTo: { id: view.replyTo!.id, unavailable: true } };
+      this.bus.toVenue(message.venueId, { type: 'message', message: masked }, excluded, { userIds: quoteHidden, build: audience?.build });
+    }
   }
 
   toSendResult(message: MessageRow, decision?: ModerationDecision): SendResult {
@@ -262,7 +335,7 @@ export class MessagesService {
         take: limit,
         include: MESSAGE_INCLUDE,
       });
-      return this.withMyVotes(rows.map((m) => this.toView(m)), userId);
+      return this.withMyVotes(rows.map((m) => this.toViewFor(m, excluded)), userId);
     }
     const rows = await this.prisma.message.findMany({
       where: { venueId, room, status: { in: visible }, authorId: { notIn: excluded } },
@@ -270,7 +343,7 @@ export class MessagesService {
       take: limit,
       include: MESSAGE_INCLUDE,
     });
-    return this.withMyVotes(rows.reverse().map((m) => this.toView(m)), userId);
+    return this.withMyVotes(rows.reverse().map((m) => this.toViewFor(m, excluded)), userId);
   }
 
   /** Hides a visible message for everyone (moderator action or report threshold). */

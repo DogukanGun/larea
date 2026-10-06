@@ -294,11 +294,15 @@ model Message {
   room             ChatRoom      @default(MAIN)
   /// The author's loyalty level at this place when they wrote it (0 = none).
   authorLevel      Int           @default(0)
+  /// The message this one answers (same place and room); cleared when that message is deleted.
+  replyToId        String?
   createdAt        DateTime      @default(now())
 
-  venue   Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
-  author  User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  media   Media?   @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  venue   Venue     @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  author  User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  media   Media?    @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  replyTo Message?  @relation("Replies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies Message[] @relation("Replies")
   poll    Poll?
   tip     Tip?
   reports Report[]
