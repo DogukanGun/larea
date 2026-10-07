@@ -78,7 +78,7 @@ For the emulator, install Solana Mobile's open source `fakewallet` (from `solana
 
 The dApp Store publishes signed release APKs through the `dapp-store` CLI (`@solana-mobile/dapp-store-cli`) and an on-chain publisher / app / release NFT.
 
-1. Build a release APK of the Solana flavor: `./gradlew :app:assembleSolanaRelease`. It needs a release signing config. Use a key that is **different** from the Play upload key; the dApp Store expects its own signing key.
+1. Build a release APK of the Solana flavor: `./gradlew :app:assembleSolanaRelease`. It is signed from `android/keystore.properties` (see `android/README.md`); that key is the dApp Store key, separate from any Play upload key, and every later release must use it. The same APK is already published for testers as the GitHub release `v0.1.0-solana`.
 2. Package id: `com.dogukangundogan.larea.solana`. It installs side by side with the Play build.
 3. `npx @solana-mobile/dapp-store-cli init`, then fill `config.yaml` (publisher, app, release: name, descriptions, icon, screenshots, the APK path, "testing instructions"), then `… create publisher` / `create app` / `create release` and `publish submit`. This mints the NFTs from a funded publisher keypair, on mainnet.
 4. Point the build at mainnet first:

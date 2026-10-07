@@ -25,6 +25,15 @@ Release builds talk to `https://larea.dogukangundogan.com` unless `-Plarea.relea
 ./gradlew :app:assembleSolanaRelease -Plarea.releaseHost=demo-larea.2-28-123-220.sslip.io   # the same, against the demo API
 ```
 
+### Publishing the APK for testers
+
+The website's download button (`/try`) and the README link to `https://github.com/DogukanGun/larea/releases/latest/download/larea-solana.apk`, so whatever the newest GitHub release carries is what testers get.
+
+1. Build from a clean checkout of the commit you release (not a working tree with other people's changes): `./gradlew :app:testSolanaDebugUnitTest :app:assembleSolanaRelease`.
+2. Check the signature (`apksigner verify --print-certs`, certificate SHA-256 `263e4dea…ff9a`) and note the APK's SHA-256.
+3. New version: raise `versionCode` / `versionName` in `app/build.gradle.kts`, then `gh release create v<version>-solana <apk renamed to larea-solana.apk> --title … --notes-file …`. Same version, new build: `gh release upload <tag> larea-solana.apk --clobber` and update the checksum in the notes.
+4. Deploy the backend from the same commit (`../docs/deployment.md`) so the app and the server match.
+
 Start the backend with `NODE_ENV=test MARKET_PAYMENTS_ENABLED=1 MEDIA_DISK_RESERVE_BYTES=0 pnpm start:dev` in `../backend` (add `PORT=3001 PUBLIC_URL=http://localhost:3001` when you move it). Media URLs the local backend announces as `localhost` are rewritten to the emulator's host alias automatically (`MediaUrls`).
 
 Debug-only launch extras (the counterparts of the iOS `-Larea…` launch arguments): `LareaTestAgePass` (age check through the backend's test-only shortcut), `LareaTestSeedImage` ("Use test image" in photo menus), `LareaResetState` (sign out on launch):
@@ -35,7 +44,7 @@ adb shell am start -n com.dogukangundogan.larea/com.larea.app.MainActivity   # .
 
 ## UI flow test
 
-`app/src/androidTest/.../LareaFlowTest.kt` ports `ios/LareaUITests/LareaFlowUITests.swift`: sign up, age check, post and edit a listing, join the nearest place, send text, a photo and a poll, check masking and blocking, members, leave, profile, payouts, my listings. It feeds a fix at a Berlin library through test location providers (the dev backend accepts mocked fixes) and saves screenshots to the app's external files dir under `flow/`.
+`app/src/androidTest/.../LareaFlowTest.kt` ports `ios/LareaUITests/LareaFlowUITests.swift`: sign up, age check, post and edit a listing, join the nearest place, send text, a photo and a poll, reply by long-press and by swipe, check masking and blocking, members, leave, profile, payouts, my listings. It feeds a fix at a Berlin library through test location providers (the dev backend accepts mocked fixes) and saves screenshots to the app's external files dir under `flow/`.
 
 ```sh
 ./gradlew :app:connectedPlayDebugAndroidTest -Plarea.devHost=10.0.2.2:3001 -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true

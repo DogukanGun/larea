@@ -7,8 +7,11 @@
 
 ## Ship a new backend version
 
+Ship from a clean checkout of the commit you mean to run (for example `git worktree add --detach ../larea-ship origin/main`), never from a working tree with uncommitted changes, and take a backup first:
+
 ```sh
-# from the repo root on the laptop
+ssh hetzner-larea larea-backup   # database + uploads → /var/backups/larea
+# from the root of the clean checkout
 rsync -az --delete --exclude node_modules --exclude dist --exclude '.env*' --exclude 'src/generated' --exclude coverage --exclude .git backend/ hetzner-larea:/opt/larea/backend/
 ssh hetzner-larea 'cd /opt/larea/backend && docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build'
 ```
@@ -28,6 +31,10 @@ docker compose -f docker-compose.prod.yml --env-file .env.production exec postgr
 
 `.env.production` holds `NODE_ENV=production`, `OPENAI_API_KEY`, `OPENAI_MODEL=gpt-5-nano`, `OVERPASS_CONTACT=dogukangundogan5@gmail.com` and the secrets. The env validation refuses to start without the OpenAI key or with `ALLOW_MOCK_LOCATIONS=1`. One-time activation after the OpenAI cut-over: `/opt/larea/backend/set-openai-key.sh <OPENAI_API_KEY>` writes the key into the staged env file, rebuilds and restarts the API (the container applies the pending migration on start). The moderator account is `dogukangundogan5@gmail.com`; its generated password is in `/root/larea-moderator-password.txt` on the server (mode 600).
 
+## Solana devnet
+
+The Solana build's features (wallet, check-in stamps, levels, tips, the USDC market, starter funds) are on: `SOLANA_ENABLED=1`, `SOLANA_CLUSTER=devnet`, with the authority, escrow and rewards secrets, the stamp tree, the two collections and the test USDC / SKR mints in `.env.production` (a copy of the same values is in `.env.devnet` next to it). The public addresses are listed in the README under "What is on chain". Keep these values when editing the file: another devnet setup (for example a local one with Circle's devnet USDC) cannot mint the test tokens that starter funds hand out. They only affect requests from the Solana build (`X-Larea-Build: solana`); Play and iOS users see no change. The authority pays starter funds (0.05 SOL per newly linked wallet), so top it up from faucet.solana.com when it runs low.
+
 ## Demo API for testers and judges
 
 Production refuses simulated locations and makes new accounts wait before trading, which is right for users and wrong for someone evaluating the app from a desk or an emulator. `docker-compose.demo.yml` adds a second API on the same host, in development mode, with its own Postgres, Redis and uploads volume; the production Caddy serves it under `DEMO_DOMAIN` (an A record such as `demo-larea.dogukangundogan.com`, or an sslip.io name). Solana settings are the same devnet keys and mints as production.
@@ -39,7 +46,7 @@ DOMAIN=larea.dogukangundogan.com DEMO_DOMAIN=demo-larea.dogukangundogan.com POST
   docker compose -f docker-compose.prod.yml -f docker-compose.demo.yml --env-file .env.production up -d --build
 ```
 
-Differences from production: `NODE_ENV=development`, `ALLOW_MOCK_LOCATIONS=1`, `MARKET_MIN_ACCOUNT_AGE_HOURS=0`, `LOYALTY_LEVELS=1,2,3` (a tester is a Regular after the first check-in), and no Stripe (USDC deals through the Solana rail only). Moderation stays real. Build the Android app against it with `./gradlew :app:assembleSolanaRelease -Plarea.releaseHost=demo-larea.dogukangundogan.com`. Both APIs share the Caddy container, so `up -d` with the two compose files replaces its command; to go back to production only, run the usual single-file `up -d` again.
+Differences from production: `NODE_ENV=development`, `ALLOW_MOCK_LOCATIONS=1`, `MARKET_MIN_ACCOUNT_AGE_HOURS=0`, `LOYALTY_LEVELS=1,2,3` (a tester is a Regular after the first check-in), and no Stripe (USDC deals through the Solana rail only). Moderation stays real. It is not running at the moment. Build the Android app against it with `./gradlew :app:assembleSolanaRelease -Plarea.releaseHost=demo-larea.dogukangundogan.com`. Both APIs share the Caddy container, so `up -d` with the two compose files replaces its command; to go back to production only, run the usual single-file `up -d` again.
 
 ## Age assurance on devices
 
@@ -48,7 +55,7 @@ The apps forward the operating system's age range (Apple Declared Age Range, Goo
 ## Apps
 
 - iOS: both Debug and Release builds use `https://larea.dogukangundogan.com` (see `ios/project.yml`). To run the simulator against a local backend: `SIMCTL_CHILD_LAREA_API_BASE_URL=http://localhost:3000/ SIMCTL_CHILD_LAREA_WS_URL=ws://localhost:3000/ws xcrun simctl launch <udid> com.dogukangundogan.larea`. The UI flow test can target any backend: `xcodebuild -scheme LareaUI ... LAREA_TEST_API_BASE_URL=https://host/ LAREA_TEST_WS_URL=wss://host/ws test`.
-- Android: the release build type uses the server; the debug build type keeps `10.0.2.2:3000` (local backend from the emulator). See `android/app/build.gradle.kts`.
+- Android: the release build type uses the server (or `-Plarea.releaseHost=<host>`) and is signed from `android/keystore.properties`; the debug build type keeps `10.0.2.2:3000` (local backend from the emulator). See `android/app/build.gradle.kts`, and `android/README.md` for publishing the APK.
 - Real iPhone: open `ios/Larea.xcodeproj` in Xcode, select your team under Signing & Capabilities (the Declared Age Range capability must be enabled on the App ID), and run on the device. Places are discovered around wherever the phone is.
 
 ## Uploads (chat photos, listing images)
