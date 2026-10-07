@@ -80,11 +80,11 @@ class TipViewModel @Inject constructor(
                 val signed = adapter.signTransactions(listOf(Base64.decode(prepared.transaction, Base64.NO_WRAP))).single()
                 val body = SubmitStampRequest(Base64.encodeToString(signed, Base64.NO_WRAP))
                 _state.update { it.copy(step = "Sending…") }
-                var tip = apiCall { api.submitTip(prepared.tip.id, body) }.getOrThrow()
+                var tip = submitSigned { api.submitTip(prepared.tip.id, body) }
                 repeat(30) {
                     if (tip.status != "PENDING") return@repeat
                     delay(1_500)
-                    tip = apiCall { api.submitTip(prepared.tip.id, body) }.getOrThrow()
+                    tip = submitSigned { api.submitTip(prepared.tip.id, body) }
                 }
                 when (tip.status) {
                     "CONFIRMED" -> Unit

@@ -9,6 +9,7 @@ import com.larea.app.feature.pins.PinPayments
 import com.larea.app.solana.SolanaApi
 import com.larea.app.solana.SubmitStampRequest
 import com.larea.app.solana.WalletAdapter
+import com.larea.app.solana.submitSigned
 import kotlinx.coroutines.delay
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -32,11 +33,11 @@ class SolanaPinPayments @Inject constructor(
         val signed = adapter.signTransactions(listOf(Base64.decode(payment.transaction, Base64.NO_WRAP))).single()
         val body = SubmitStampRequest(Base64.encodeToString(signed, Base64.NO_WRAP))
         step("Sending USDC…")
-        var pin = apiCall { api.submitPinPayment(quote.pin.id, body) }.getOrThrow()
+        var pin = submitSigned { api.submitPinPayment(quote.pin.id, body) }
         repeat(30) {
             if (pin.status != "PENDING_PAYMENT") return@repeat
             delay(1_500)
-            pin = apiCall { api.submitPinPayment(quote.pin.id, body) }.getOrThrow()
+            pin = submitSigned { api.submitPinPayment(quote.pin.id, body) }
         }
         if (pin.status == "PENDING_PAYMENT") PinPaymentOutcome.Pending("Your payment is still being confirmed. The pin goes live once it lands.")
         else PinPaymentOutcome.Activated(pin)

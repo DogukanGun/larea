@@ -25,11 +25,11 @@ class OrderPayFlow @Inject constructor(
         val signed = adapter.signTransactions(listOf(Base64.decode(payment.transaction, Base64.NO_WRAP))).single()
         val body = SubmitStampRequest(Base64.encodeToString(signed, Base64.NO_WRAP))
         step("Sending USDC to escrow…")
-        var order = apiCall { api.submitOrderPayment(orderId, body) }.getOrThrow()
+        var order = submitSigned { api.submitOrderPayment(orderId, body) }
         repeat(30) {
             if (order.status != OrderStatus.AWAITING_PAYMENT) return@repeat
             delay(1_500)
-            order = apiCall { api.submitOrderPayment(orderId, body) }.getOrThrow()
+            order = submitSigned { api.submitOrderPayment(orderId, body) }
         }
         if (order.status == OrderStatus.AWAITING_PAYMENT) {
             throw WalletException("Your payment is still being confirmed. It will show here once it lands.")

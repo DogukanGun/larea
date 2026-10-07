@@ -31,12 +31,12 @@ class StampFlow @Inject constructor(
         val body = SubmitStampRequest(Base64.encodeToString(signed, Base64.NO_WRAP))
 
         step("Minting your stamp…")
-        var stamp = apiCall { api.submitStamp(checkin.stamp.id, body) }.getOrThrow()
+        var stamp = submitSigned { api.submitStamp(checkin.stamp.id, body) }
         var waited = 0L
         while (stamp.status == "PENDING" && waited < CONFIRM_TIMEOUT_MS) {
             delay(POLL_MS)
             waited += POLL_MS
-            stamp = apiCall { api.submitStamp(checkin.stamp.id, body) }.getOrThrow()
+            stamp = submitSigned { api.submitStamp(checkin.stamp.id, body) }
         }
         when (stamp.status) {
             "CONFIRMED" -> step("Stamp collected ✓")
