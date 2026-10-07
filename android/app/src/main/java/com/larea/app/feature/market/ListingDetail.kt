@@ -402,12 +402,12 @@ private fun Details(listing: Listing, busy: Boolean, onView: (ImageAttachment) -
     if (listing.mine && offers != null) {
         Text(if (offers.isEmpty()) "No offers yet" else "Offers (${offers.size})", style = LareaType.title3, color = c.text, modifier = Modifier.padding(top = Spacing.s))
         offers.forEach { offer ->
-            OfferRow(offer, OfferPerspective.Owner, busy, onAccept = { model.accept(offer) }, onDecline = { model.decline(offer) }, onWithdraw = null)
+            OfferRow(offer, OfferPerspective.Owner, busy, onAccept = { model.accept(offer) }, onDecline = { model.decline(offer) }, onWithdraw = null, currency = listing.currency)
         }
     }
     val mine = listing.myOffer
     if (!listing.mine && mine != null) {
-        OfferRow(mine, OfferPerspective.Offerer, busy, onAccept = null, onDecline = null, onWithdraw = if (mine.status == OfferStatus.PENDING) ({ model.withdraw(mine) }) else null)
+        OfferRow(mine, OfferPerspective.Offerer, busy, onAccept = null, onDecline = null, onWithdraw = if (mine.status == OfferStatus.PENDING) ({ model.withdraw(mine) }) else null, currency = listing.currency)
         mine.orderId?.let { orderId -> SecondaryButton("Go to deal", onClick = { onOpenOrder(orderId) }, tag = "market.listing.deal") }
     }
 }
@@ -447,7 +447,7 @@ enum class OfferPerspective { Owner, Offerer }
 
 /** An offer line with the actions for the side looking at it. */
 @Composable
-fun OfferRow(offer: Offer, perspective: OfferPerspective, busy: Boolean, onAccept: (() -> Unit)?, onDecline: (() -> Unit)?, onWithdraw: (() -> Unit)?, modifier: Modifier = Modifier) {
+fun OfferRow(offer: Offer, perspective: OfferPerspective, busy: Boolean, onAccept: (() -> Unit)?, onDecline: (() -> Unit)?, onWithdraw: (() -> Unit)?, modifier: Modifier = Modifier, currency: String = offer.listing.currency) {
     val c = Larea.colors
     Column(
         verticalArrangement = Arrangement.spacedBy(Spacing.s),
@@ -460,7 +460,7 @@ fun OfferRow(offer: Offer, perspective: OfferPerspective, busy: Boolean, onAccep
                 if (!offer.note.isNullOrEmpty()) Text(offer.note, style = LareaType.subheadline, color = c.secondaryText)
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(Money.format(offer.amountCents), style = LareaType.title3, color = c.text)
+                Text(Money.format(offer.amountCents, currency), style = LareaType.title3, color = c.text)
                 Pill(
                     offer.status.label,
                     style = when (offer.status) {

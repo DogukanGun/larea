@@ -68,7 +68,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import coil3.compose.AsyncImage
+import com.larea.app.BuildConfig
 import com.larea.app.core.DebugFlags
+import com.larea.app.core.auth.SessionStore
 import com.larea.app.core.format.Money
 import com.larea.app.core.location.LocationSource
 import com.larea.app.core.media.ImageUploader
@@ -100,6 +102,7 @@ import com.larea.app.ui.theme.Spacing
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.File
@@ -120,6 +123,8 @@ data class ListingEditorState(
     val progress: String? = null,
     val error: String? = null,
     val attempted: Boolean = false,
+    /** Null until known; listings from the Solana build are priced in USDC when the owner has a wallet. */
+    val currency: String? = null,
 ) {
     val priceCents: Int? get() = Money.parse(priceText)
 }
@@ -129,7 +134,9 @@ class ListingEditorViewModel @Inject constructor(
     private val api: LareaApi,
     private val uploader: ImageUploader,
     private val location: LocationSource,
+    private val sessions: SessionStore,
 ) : ViewModel() {
+
     private val _state = MutableStateFlow(ListingEditorState())
     val state: StateFlow<ListingEditorState> = _state
     private var editing: Listing? = null
@@ -151,6 +158,11 @@ class ListingEditorViewModel @Inject constructor(
                 priceText = Money.editText(editing.priceCents),
                 photos = editing.images.map { PickedPhoto(it.key, remote = it) },
             )
+        }
+        viewModelScope.launch {
+            val hasWallet = sessions.session.first()?.user?.walletAddress != null
+            val currency = editing?.currency ?: if (BuildConfig.SOLANA && hasWallet) "usdc" else config.currency
+            _state.update { it.copy(currency = currency) }
         }
     }
 
@@ -238,6 +250,7 @@ fun ListingEditor(config: MarketConfig, editing: Listing?, onDismiss: () -> Unit
     var menu by remember { mutableStateOf(false) }
     var categoryMenu by remember { mutableStateOf(false) }
     val request = state.kind == ListingKind.REQUEST
+    val currency = state.currency ?: config.currency
     val remaining = (config.maxImages - state.photos.size).coerceAtLeast(1)
 
     fun attach(uri: Uri?) {
@@ -358,7 +371,7 @@ fun ListingEditor(config: MarketConfig, editing: Listing?, onDismiss: () -> Unit
                             }
                         }
                         LareaField(
-                            "${if (request) "Budget" else "Price"} (${config.currency.uppercase()})", state.priceText, { v -> model.update { it.copy(priceText = v) } },
+                            "${if (request) "Budget" else "Price"} (${currency.uppercase()})", state.priceText, { v -> model.update { it.copy(priceText = v) } },
                             placeholder = "0", keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done, tag = "market.create.price",
                         )
                     }
