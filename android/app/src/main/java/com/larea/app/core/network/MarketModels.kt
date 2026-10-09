@@ -104,6 +104,8 @@ data class ListingSummary(
     val title: String,
     @SerialName("kind") val kindRaw: String? = null,
     val priceCents: Int = 0,
+    /** "eur" for Stripe listings, "usdc" for listings paid on Solana. */
+    val currency: String = "eur",
     val thumbUrl: String? = null,
     @SerialName("status") val statusRaw: String? = null,
 ) {

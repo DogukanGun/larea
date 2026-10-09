@@ -74,13 +74,13 @@ export class ListingsService {
     return view;
   }
 
-  offerView(o: { id: string; listingId: string; offererId: string; amountCents: number; note: string | null; status: string; expiresAt: Date; respondedAt: Date | null; createdAt: Date; offerer: { id: string; displayName: string }; listing: { id: string; title: string; kind: 'OFFER' | 'REQUEST'; priceCents: number; status: string; images?: { media: MediaSummary }[] }; order?: { id: string } | null }): OfferView {
+  offerView(o: { id: string; listingId: string; offererId: string; amountCents: number; note: string | null; status: string; expiresAt: Date; respondedAt: Date | null; createdAt: Date; offerer: { id: string; displayName: string }; listing: { id: string; title: string; kind: 'OFFER' | 'REQUEST'; priceCents: number; currency: string; status: string; images?: { media: MediaSummary }[] }; order?: { id: string } | null }): OfferView {
     const thumb = o.listing.images?.[0] ? this.media.toView(o.listing.images[0].media)?.thumbUrl ?? null : null;
     const orderId = o.order?.id ?? null;
     return {
       id: o.id,
       listingId: o.listingId,
-      listing: { id: o.listing.id, title: o.listing.title, kind: o.listing.kind, priceCents: o.listing.priceCents, thumbUrl: thumb, status: o.listing.status },
+      listing: { id: o.listing.id, title: o.listing.title, kind: o.listing.kind, priceCents: o.listing.priceCents, currency: o.listing.currency, thumbUrl: thumb, status: o.listing.status },
       offerer: o.offerer,
       amountCents: o.amountCents,
       note: o.note,
@@ -242,7 +242,7 @@ export class ListingsService {
     const myOffers = await this.prisma.offer.findMany({
       where: { listingId: id, offererId: user.id },
       orderBy: { createdAt: 'desc' },
-      include: { offerer: { select: { id: true, displayName: true } }, listing: { select: { id: true, title: true, kind: true, priceCents: true, status: true, images: { orderBy: { position: 'asc' }, take: 1, include: { media: { select: MEDIA_SUMMARY_SELECT } } } } } },
+      include: { offerer: { select: { id: true, displayName: true } }, listing: { select: { id: true, title: true, kind: true, priceCents: true, currency: true, status: true, images: { orderBy: { position: 'asc' }, take: 1, include: { media: { select: MEDIA_SUMMARY_SELECT } } } } } },
     });
     const party = mine || myOffers.length > 0;
     if (!party) {
@@ -259,7 +259,7 @@ export class ListingsService {
       const pending = await this.prisma.offer.findMany({
         where: { listingId: id, status: 'PENDING' },
         orderBy: { createdAt: 'desc' },
-        include: { offerer: { select: { id: true, displayName: true } }, listing: { select: { id: true, title: true, kind: true, priceCents: true, status: true } } },
+        include: { offerer: { select: { id: true, displayName: true } }, listing: { select: { id: true, title: true, kind: true, priceCents: true, currency: true, status: true } } },
       });
       view.offers = pending.map((o) => this.offerView(o));
     }

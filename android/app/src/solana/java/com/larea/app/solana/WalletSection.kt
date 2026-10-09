@@ -114,7 +114,7 @@ fun WalletSection(model: WalletViewModel = hiltViewModel()) {
                         Column(Modifier.weight(1f)) {
                             Text(level.venueName, style = LareaType.body, color = c.text, maxLines = 1)
                             val next = level.nextLevelAt?.let { " · ${it - level.stamps} to ${Levels.name(level.level + 1)}" }.orEmpty()
-                            Text("${level.stamps} check-ins$next", style = LareaType.subheadline, color = c.secondaryText)
+                            Text("${level.stamps} ${if (level.stamps == 1) "check-in" else "check-ins"}$next", style = LareaType.subheadline, color = c.secondaryText)
                         }
                         if (level.level >= Levels.REGULAR) LevelBadge(level.level) else Text(level.levelName, style = LareaType.subheadline, color = c.secondaryText)
                     }

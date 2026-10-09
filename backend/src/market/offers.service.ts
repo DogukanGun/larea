@@ -24,7 +24,7 @@ import { TABLES, assertTransition } from './state-machine.js';
 const OFFER_INCLUDE = {
   offerer: { select: { id: true, displayName: true } },
   order: { select: { id: true } },
-  listing: { select: { id: true, ownerId: true, title: true, kind: true, priceCents: true, paymentRail: true, status: true, publicLat: true, publicLng: true, expiresAt: true, images: { orderBy: { position: 'asc' as const }, take: 1, include: { media: { select: MEDIA_SUMMARY_SELECT } } } } },
+  listing: { select: { id: true, ownerId: true, title: true, kind: true, priceCents: true, currency: true, paymentRail: true, status: true, publicLat: true, publicLng: true, expiresAt: true, images: { orderBy: { position: 'asc' as const }, take: 1, include: { media: { select: MEDIA_SUMMARY_SELECT } } } } },
 } as const;
 
 @Injectable()

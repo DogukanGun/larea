@@ -29,7 +29,7 @@ export interface ListingView {
 export interface OfferView {
   id: string;
   listingId: string;
-  listing: { id: string; title: string; kind: 'OFFER' | 'REQUEST'; priceCents: number; thumbUrl: string | null; status: string };
+  listing: { id: string; title: string; kind: 'OFFER' | 'REQUEST'; priceCents: number; currency: string; thumbUrl: string | null; status: string };
   offerer: { id: string; displayName: string };
   amountCents: number;
   note: string | null;
