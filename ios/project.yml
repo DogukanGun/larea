@@ -9,9 +9,9 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
-    # Bump CURRENT_PROJECT_VERSION for every TestFlight upload (App Store Connect has 3).
+    # Bump CURRENT_PROJECT_VERSION for every TestFlight upload (build 5 uploaded 2026-10-10).
     MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "4"
+    CURRENT_PROJECT_VERSION: "5"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: 8HZ7L8U8KY  # personal Apple Developer account (Individual)
     ENABLE_USER_SCRIPT_SANDBOXING: YES
