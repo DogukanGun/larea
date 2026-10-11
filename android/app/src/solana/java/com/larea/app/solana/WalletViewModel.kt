@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.larea.app.core.auth.SessionRepository
 import com.larea.app.core.format.Base58
 import com.larea.app.core.network.apiCall
+import com.larea.app.core.network.apiCode
 import com.larea.app.core.network.userMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -67,7 +68,12 @@ class WalletViewModel @Inject constructor(
                     message = Base64.encodeToString(signIn.signedMessage, Base64.NO_WRAP),
                     signature = Base64.encodeToString(signIn.signature, Base64.NO_WRAP),
                 )
-                apiCall { api.link(body) }.getOrThrow()
+                // The wallet answers while it is still on screen; Larea's network is blocked until it is back in front.
+                runCatching { submitSigned { api.link(body) } }.getOrElse { e ->
+                    // A retry after a request that did arrive finds the one-time challenge used up: the wallet is linked.
+                    if (e.apiCode != "CHALLENGE_EXPIRED") throw e
+                    apiCall { api.wallet() }.getOrNull()?.wallet?.takeIf { it.address == body.address } ?: throw e
+                }
             }.onSuccess { linked ->
                 _state.update { it.copy(notice = linked.starter?.let { s -> starterNotice(s, linked.cluster) }) }
                 sessions.refreshMe()
