@@ -55,3 +55,28 @@ export class RefreshDto {
 }
 
 export class LogoutDto extends RefreshDto {}
+
+export class ForgotPasswordDto {
+  @ApiProperty({ example: 'anna@example.com' })
+  @IsEmail({}, { message: 'Please enter a valid email address.' })
+  @MaxLength(254)
+  email!: string;
+}
+
+export class ResetPasswordDto extends ForgotPasswordDto {
+  @ApiProperty({ example: '042917', description: 'The six-digit code from the email' })
+  @Matches(/^\d{6}$/, { message: 'Enter the six-digit code from the email.' })
+  code!: string;
+
+  @ApiProperty({ minLength: 10, maxLength: 128 })
+  @IsString()
+  @MinLength(10, { message: 'Password must be at least 10 characters.' })
+  @MaxLength(128, { message: 'Password must be at most 128 characters.' })
+  password!: string;
+
+  @ApiPropertyOptional({ example: 'Pixel 8' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  deviceLabel?: string;
+}

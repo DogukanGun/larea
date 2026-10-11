@@ -76,6 +76,56 @@
         ]
       }
     },
+    "/auth/password/forgot": {
+      "post": {
+        "operationId": "AuthController_forgotPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Email a six-digit password reset code (same answer whether or not the account exists)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/password/reset": {
+      "post": {
+        "operationId": "AuthController_resetPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Set a new password with the emailed code; signs out other devices and signs in",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/logout": {
       "post": {
         "operationId": "AuthController_logout",
@@ -3399,6 +3449,46 @@
         },
         "required": [
           "refreshToken"
+        ]
+      },
+      "ForgotPasswordDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "anna@example.com"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "ResetPasswordDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "anna@example.com"
+          },
+          "code": {
+            "type": "string",
+            "example": "042917",
+            "description": "The six-digit code from the email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 128
+          },
+          "deviceLabel": {
+            "type": "string",
+            "example": "Pixel 8"
+          }
+        },
+        "required": [
+          "email",
+          "code",
+          "password"
         ]
       },
       "LogoutDto": {

@@ -149,6 +149,12 @@ export const envSchema = z
     GOOGLE_PLAY_PACKAGE: z.string().default('com.dogukangundogan.larea'),
     GOOGLE_PLAY_SERVICE_ACCOUNT_FILE: z.preprocess(emptyAsUnset, z.string().optional()),
 
+    /** Outgoing mail (password reset codes), e.g. `smtps://user:pass@smtp.example.com:465`. Unset = no mail; password reset is unavailable. */
+    SMTP_URL: z.preprocess(emptyAsUnset, z.string().optional()),
+    MAIL_FROM: z.string().default('Larea <no-reply@larea.dogukangundogan.com>'),
+    /** How long an emailed password reset code stays valid. */
+    PASSWORD_RESET_TTL_MIN: z.coerce.number().int().positive().default(15),
+
     REPORT_AUTO_HIDE_THRESHOLD: z.coerce.number().int().positive().default(3),
     MESSAGE_RETENTION_DAYS: z.coerce.number().int().positive().default(7),
     MODERATION_RECORD_RETENTION_DAYS: z.coerce.number().int().positive().default(90),

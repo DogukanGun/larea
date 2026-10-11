@@ -29,7 +29,9 @@ docker compose -f docker-compose.prod.yml --env-file .env.production exec postgr
 
 ## Production settings
 
-`.env.production` holds `NODE_ENV=production`, `OPENAI_API_KEY`, `OPENAI_MODEL=gpt-5-nano`, `OVERPASS_CONTACT=dogukangundogan5@gmail.com` and the secrets. The env validation refuses to start without the OpenAI key or with `ALLOW_MOCK_LOCATIONS=1`. One-time activation after the OpenAI cut-over: `/opt/larea/backend/set-openai-key.sh <OPENAI_API_KEY>` writes the key into the staged env file, rebuilds and restarts the API (the container applies the pending migration on start). The moderator account is `dogukangundogan5@gmail.com`; its generated password is in `/root/larea-moderator-password.txt` on the server (mode 600).
+`.env.production` holds `NODE_ENV=production`, `OPENAI_API_KEY`, `OPENAI_MODEL=gpt-5-nano`, `OVERPASS_CONTACT=dogukangundogan5@gmail.com` and the secrets. The env validation refuses to start without the OpenAI key or with `ALLOW_MOCK_LOCATIONS=1`. One-time activation after the OpenAI cut-over: `/opt/larea/backend/set-openai-key.sh <OPENAI_API_KEY>` writes the key into the staged env file, rebuilds and restarts the API (the container applies the pending migration on start). The moderator account is `dogukangundogan5@gmail.com`. It existed before it was promoted, so it keeps the password chosen at sign-up; nothing was generated. Use "Forgot password?" in the app to set a new one.
+
+Password reset emails a six-digit code (`POST /auth/password/forgot`, then `POST /auth/password/reset`), so `.env.production` needs an SMTP server: `SMTP_URL=smtps://user:pass@smtp.example.com:465` and `MAIL_FROM` (a sender address that server is allowed to use). Without `SMTP_URL` the API still starts, and the forgot-password endpoint answers 503 `PASSWORD_RESET_UNAVAILABLE`. Codes expire after `PASSWORD_RESET_TTL_MIN` (15), allow five wrong guesses, and a new one goes out at most once a minute per email. A failed send is logged as `mail.failed`.
 
 ## Solana devnet
 
@@ -85,7 +87,7 @@ Never log Stripe objects (they carry emails and card details); the code logs `{e
 ## Operations
 
 - **Health**: `GET /health` reports `db`, `redis`, `uploads {writable, freeBytes}` and `stripe {lastWebhookAt, failedLastHour}`; it answers 503 `degraded` when Postgres or Redis are down or when the uploads directory is not writable or has less free space than `MEDIA_DISK_RESERVE_BYTES` (uploads are refused with 507 in that state). Point an uptime monitor (Uptime Kuma, or Hetzner's own checks) at it with a one-minute interval.
-- **Logs**: JSON lines from the API (pino) and Caddy, rotated by Docker (`max-size: 20m`, `max-file: 5` per container). Events worth alerting on: `media.disk.low`, `stripe.webhook.invalid_signature`, `stripe.webhook.failed`, `stripe.transfer.failed`, `stripe.refund.failed`, `stripe.reversal.failed`, `market.dispute`, `market.auto_refund`. Secrets (`authorization`, `stripe-signature`, passwords, handover codes) are redacted before they reach the log.
+- **Logs**: JSON lines from the API (pino) and Caddy, rotated by Docker (`max-size: 20m`, `max-file: 5` per container). Events worth alerting on: `media.disk.low`, `stripe.webhook.invalid_signature`, `stripe.webhook.failed`, `stripe.transfer.failed`, `stripe.refund.failed`, `stripe.reversal.failed`, `market.dispute`, `market.auto_refund`, `mail.failed`. Secrets (`authorization`, `stripe-signature`, passwords, handover codes) are redacted before they reach the log.
 - **Backups**: `docker/backup.sh` dumps Postgres (`pg_dump -Fc`) and tars the `uploads` volume into `/var/backups/larea`, keeping 14 days. Install it once and run it nightly:
 
   ```sh

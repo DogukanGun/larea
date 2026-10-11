@@ -15,6 +15,14 @@ final class ValidationTests: XCTestCase {
         XCTAssertNotNil(Validation.password(""))
     }
 
+    func testResetCode() {
+        XCTAssertNil(Validation.resetCode("042917"))
+        XCTAssertNil(Validation.resetCode(" 042917 "))
+        XCTAssertNotNil(Validation.resetCode(""))
+        XCTAssertNotNil(Validation.resetCode("12345"))
+        XCTAssertNotNil(Validation.resetCode("12a456"))
+    }
+
     func testDisplayNameMatchesBackendRule() {
         XCTAssertNil(Validation.displayName("anna_k"))
         XCTAssertNil(Validation.displayName("Anna K."))

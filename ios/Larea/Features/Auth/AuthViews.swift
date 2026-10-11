@@ -8,6 +8,7 @@ struct SignInView: View {
     @State private var attempted = false
     @FocusState private var focus: FormField?
     let onCreateAccount: () -> Void
+    let onForgotPassword: (String) -> Void
 
     private var emailError: String? { attempted ? Validation.email(email) : nil }
     private var passwordError: String? { attempted && password.isEmpty ? "Enter your password." : nil }
@@ -17,6 +18,11 @@ struct SignInView: View {
             VStack(spacing: Spacing.l) {
                 LareaField(label: "Email", text: $email, placeholder: "you@example.com", error: emailError, keyboard: .emailAddress, contentType: .emailAddress, focus: $focus, field: .email, identifier: "signin.email") { focus = .password }
                 LareaField(label: "Password", text: $password, placeholder: "Your password", isSecure: true, error: passwordError, contentType: .password, submitLabel: .go, focus: $focus, field: .password, identifier: "signin.password") { submit() }
+                Button("Forgot password?") { onForgotPassword(email.trimmingCharacters(in: .whitespaces)) }
+                    .font(.subheadline.weight(.semibold))
+                    .tint(.brandPrimary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .accessibilityIdentifier("signin.forgot")
                 if let error = model?.error { InlineError(text: error) }
                 PrimaryButton(title: "Sign in", isLoading: model?.busy ?? false, identifier: "signin.submit", action: submit)
                 LinkButton(title: "New here? Create an account", action: onCreateAccount)

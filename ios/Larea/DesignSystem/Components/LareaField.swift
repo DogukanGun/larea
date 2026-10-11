@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Fields used across sign-in, sign-up and settings share one focus enum.
 enum FormField: Hashable {
-    case displayName, email, password
+    case displayName, email, password, code
 }
 
 /// Label above, 52pt filled field, optional error line. Secure fields get a reveal toggle

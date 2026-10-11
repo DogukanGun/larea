@@ -1,11 +1,13 @@
 package com.larea.app.core.auth
 
 import android.os.Build
+import com.larea.app.core.network.ForgotPasswordRequest
 import com.larea.app.core.network.LareaApi
 import com.larea.app.core.network.LoginRequest
 import com.larea.app.core.network.MeView
 import com.larea.app.core.network.RefreshRequest
 import com.larea.app.core.network.RegisterRequest
+import com.larea.app.core.network.ResetPasswordRequest
 import com.larea.app.core.network.UpdateMeRequest
 import com.larea.app.core.network.apiCall
 import kotlinx.coroutines.flow.Flow
@@ -23,6 +25,18 @@ class SessionRepository(private val api: LareaApi, private val store: SessionSto
 
     suspend fun login(email: String, password: String): Result<MeView> = apiCall {
         val result = api.login(LoginRequest(email.trim(), password, deviceLabel))
+        store.save(Session(result.accessToken, result.refreshToken, result.user))
+        result.user
+    }
+
+    /** Emails a six-digit reset code; the server answers the same whether or not the account exists. */
+    suspend fun forgotPassword(email: String): Result<Unit> = apiCall {
+        api.forgotPassword(ForgotPasswordRequest(email.trim()))
+    }
+
+    /** Sets a new password with the emailed code and signs in (other devices are signed out). */
+    suspend fun resetPassword(email: String, code: String, password: String): Result<MeView> = apiCall {
+        val result = api.resetPassword(ResetPasswordRequest(email.trim(), code.trim(), password, deviceLabel))
         store.save(Session(result.accessToken, result.refreshToken, result.user))
         result.user
     }

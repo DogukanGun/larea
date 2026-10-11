@@ -27,6 +27,20 @@ final class SessionRepository {
         return result.user
     }
 
+    /// Asks the backend to email a six-digit reset code. It answers the same whether or not the account exists.
+    func requestPasswordReset(email: String) async throws {
+        let body = ForgotPasswordRequest(email: email.trimmingCharacters(in: .whitespaces))
+        try await api.sendNoContent(try APIRequest(.POST, "auth/password/forgot", json: body, authenticated: false))
+    }
+
+    /// Sets a new password with the emailed code and signs in (other devices are signed out).
+    func resetPassword(email: String, code: String, password: String) async throws -> MeView {
+        let body = ResetPasswordRequest(email: email.trimmingCharacters(in: .whitespaces), code: code.trimmingCharacters(in: .whitespaces), password: password, deviceLabel: deviceLabel)
+        let result: AuthResult = try await api.send(try APIRequest(.POST, "auth/password/reset", json: body, authenticated: false))
+        store.save(Session(accessToken: result.accessToken, refreshToken: result.refreshToken, user: result.user))
+        return result.user
+    }
+
     @discardableResult
     func refreshMe() async -> MeView? {
         guard let me: MeView = try? await api.send(APIRequest(.GET, "me")) else { return nil }

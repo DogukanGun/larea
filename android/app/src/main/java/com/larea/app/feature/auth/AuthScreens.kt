@@ -24,6 +24,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import com.larea.app.core.format.Validation
 import com.larea.app.ui.components.InlineError
 import com.larea.app.ui.components.LareaField
@@ -55,6 +57,7 @@ import kotlinx.serialization.Serializable
 @Serializable private data object Welcome
 @Serializable private data object SignIn
 @Serializable private data object SignUp
+@Serializable private data class ForgotPassword(val email: String = "")
 
 /** Welcome, then sign in or sign up (iOS `AuthFlowView`). */
 @Composable
@@ -65,7 +68,14 @@ fun AuthFlow() {
             WelcomeScreen(onCreateAccount = { nav.navigate(SignUp) }, onSignIn = { nav.navigate(SignIn) })
         }
         composable<SignIn> {
-            SignInScreen(onBack = { nav.popBackStack() }, onCreateAccount = { nav.navigate(SignUp) { popUpTo(Welcome) } })
+            SignInScreen(
+                onBack = { nav.popBackStack() },
+                onCreateAccount = { nav.navigate(SignUp) { popUpTo(Welcome) } },
+                onForgotPassword = { email -> nav.navigate(ForgotPassword(email)) },
+            )
+        }
+        composable<ForgotPassword> { entry ->
+            ForgotPasswordScreen(initialEmail = entry.toRoute<ForgotPassword>().email, onBack = { nav.popBackStack() })
         }
         composable<SignUp> {
             SignUpScreen(onBack = { nav.popBackStack() }, onSignIn = { nav.navigate(SignIn) { popUpTo(Welcome) } })
@@ -109,7 +119,7 @@ fun WelcomeScreen(onCreateAccount: () -> Unit, onSignIn: () -> Unit) {
 }
 
 @Composable
-fun SignInScreen(onBack: () -> Unit, onCreateAccount: () -> Unit, model: AuthViewModel = hiltViewModel()) {
+fun SignInScreen(onBack: () -> Unit, onCreateAccount: () -> Unit, onForgotPassword: (String) -> Unit, model: AuthViewModel = hiltViewModel()) {
     val state by model.state.collectAsStateWithLifecycle()
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
@@ -145,7 +155,101 @@ fun SignInScreen(onBack: () -> Unit, onCreateAccount: () -> Unit, model: AuthVie
         )
         state.error?.let { InlineError(it) }
         PrimaryButton("Sign in", onClick = ::submit, loading = state.busy, tag = "signin.submit")
+        LinkButton("Forgot password?", onClick = { onForgotPassword(email.trim()) })
         LinkButton("New here? Create an account", onClick = onCreateAccount)
+    }
+}
+
+/** Step 1 asks for the email and mails a code; step 2 takes the code and a new password, then signs in. */
+@Composable
+fun ForgotPasswordScreen(initialEmail: String, onBack: () -> Unit, model: AuthViewModel = hiltViewModel()) {
+    val state by model.reset.collectAsStateWithLifecycle()
+    val sentTo = state.codeSentTo
+    if (sentTo == null) {
+        RequestResetCode(initialEmail, state, onBack, onSend = model::sendResetCode)
+    } else {
+        EnterResetCode(sentTo, state, onBack = model::changeResetEmail, onResend = { model.sendResetCode(sentTo) }, onReset = model::resetPassword)
+    }
+}
+
+@Composable
+private fun RequestResetCode(initialEmail: String, state: ResetUiState, onBack: () -> Unit, onSend: (String) -> Unit) {
+    var email by rememberSaveable { mutableStateOf(initialEmail) }
+    var attempted by rememberSaveable { mutableStateOf(false) }
+    val emailFocus = remember { FocusRequester() }
+    val focus = LocalFocusManager.current
+    val emailError = if (attempted) Validation.email(email) else null
+
+    fun submit() {
+        attempted = true
+        if (Validation.email(email) != null) return
+        focus.clearFocus()
+        onSend(email)
+    }
+
+    LaunchedEffect(Unit) { emailFocus.requestFocus() }
+    ScreenScaffold(
+        title = "Reset your password",
+        subtitle = "Enter the email you signed up with and we'll send you a 6-digit code.",
+        topBar = { LareaTopBar("", onBack = onBack, background = Larea.colors.background) },
+    ) {
+        LareaField(
+            "Email", email, { email = it }, placeholder = "you@example.com", error = emailError,
+            keyboardType = KeyboardType.Email, imeAction = ImeAction.Go, focusRequester = emailFocus,
+            tag = "reset.email", onSubmit = ::submit,
+        )
+        state.error?.let { InlineError(it) }
+        PrimaryButton("Send code", onClick = ::submit, loading = state.busy, tag = "reset.send")
+    }
+}
+
+@Composable
+private fun EnterResetCode(email: String, state: ResetUiState, onBack: () -> Unit, onResend: () -> Unit, onReset: (String, String) -> Unit) {
+    var code by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    var attempted by rememberSaveable { mutableStateOf(false) }
+    val codeFocus = remember { FocusRequester() }
+    val passwordFocus = remember { FocusRequester() }
+    val focus = LocalFocusManager.current
+
+    val codeError = if (attempted) Validation.resetCode(code) else null
+    val passwordError = if (attempted) Validation.password(password) else null
+
+    fun submit() {
+        attempted = true
+        if (Validation.resetCode(code) != null || Validation.password(password) != null) return
+        focus.clearFocus()
+        onReset(code.trim(), password)
+    }
+
+    LaunchedEffect(Unit) { codeFocus.requestFocus() }
+    ScreenScaffold(
+        title = "Check your email",
+        subtitle = "If an account exists for $email, we sent a 6-digit code. It expires in 15 minutes.",
+        topBar = { LareaTopBar("", onBack = onBack, background = Larea.colors.background) },
+    ) {
+        LareaField(
+            "Code", code, { new -> code = new.filter(Char::isDigit).take(6) }, placeholder = "123456", error = codeError,
+            keyboardType = KeyboardType.NumberPassword, focusRequester = codeFocus, tag = "reset.code",
+            autofill = ContentType.SmsOtpCode, onSubmit = { passwordFocus.requestFocus() },
+        )
+        LareaField(
+            "New password", password, { password = it }, placeholder = "At least 10 characters", secure = true,
+            error = passwordError, imeAction = ImeAction.Go, focusRequester = passwordFocus, tag = "reset.password",
+            autofill = ContentType.NewPassword, onSubmit = ::submit,
+        )
+        state.error?.let { InlineError(it) }
+        PrimaryButton("Reset password", onClick = ::submit, loading = state.busy, tag = "reset.submit")
+        if (state.resent) {
+            Text(
+                "We sent a new code. Use the newest email.",
+                style = LareaType.footnote,
+                color = Larea.colors.secondaryText,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        LinkButton("Send a new code", onClick = onResend)
     }
 }
 

@@ -11,6 +11,12 @@ object Validation {
         return if (emailPattern.matches(trimmed)) null else "That doesn't look like an email address."
     }
 
+    fun resetCode(value: String): String? = when {
+        value.trim().isEmpty() -> "Enter the code from the email."
+        Regex("^\\d{6}$").matches(value.trim()) -> null
+        else -> "The code has 6 digits."
+    }
+
     fun password(value: String): String? = when {
         value.isEmpty() -> "Choose a password."
         value.codePointCount(0, value.length) < 10 -> "Use at least 10 characters."

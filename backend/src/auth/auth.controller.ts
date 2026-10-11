@@ -3,7 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RateLimit } from '../common/decorators/rate-limit.decorator.js';
 import { RateLimitGuard } from '../common/guards/rate-limit.guard.js';
 import { type AuthResult, AuthService } from './auth.service.js';
-import { LoginDto, LogoutDto, RefreshDto, RegisterDto } from './dto/auth.dto.js';
+import { ForgotPasswordDto, LoginDto, LogoutDto, RefreshDto, RegisterDto, ResetPasswordDto } from './dto/auth.dto.js';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -32,6 +32,22 @@ export class AuthController {
   @RateLimit({ limit: 30, windowSec: 60, by: 'ip' })
   refresh(@Body() dto: RefreshDto): Promise<AuthResult> {
     return this.auth.refresh(dto.refreshToken);
+  }
+
+  @Post('password/forgot')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Email a six-digit password reset code (same answer whether or not the account exists)' })
+  @RateLimit({ limit: 10, windowSec: 3600, by: 'ip' })
+  async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<void> {
+    await this.auth.forgotPassword(dto.email);
+  }
+
+  @Post('password/reset')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Set a new password with the emailed code; signs out other devices and signs in' })
+  @RateLimit({ limit: 20, windowSec: 3600, by: 'ip' })
+  resetPassword(@Body() dto: ResetPasswordDto): Promise<AuthResult> {
+    return this.auth.resetPassword(dto);
   }
 
   @Post('logout')

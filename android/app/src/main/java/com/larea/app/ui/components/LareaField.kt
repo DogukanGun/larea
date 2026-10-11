@@ -42,6 +42,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.autofill.ContentType
+import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -75,6 +77,8 @@ fun LareaField(
     minLines: Int = 1,
     maxLines: Int = if (singleLine) 1 else 8,
     enabled: Boolean = true,
+    /** Autofill hint, e.g. [ContentType.SmsOtpCode] for an emailed or texted code. */
+    autofill: ContentType? = null,
     onSubmit: () -> Unit = {},
 ) {
     val c = Larea.colors
@@ -126,7 +130,10 @@ fun LareaField(
                         .fillMaxWidth()
                         .focusRequester(focusRequester)
                         .testTag(tag ?: "field.$label")
-                        .semantics { contentDescription = label },
+                        .semantics {
+                            contentDescription = label
+                            if (autofill != null) contentType = autofill
+                        },
                 )
             }
             if (secure) {

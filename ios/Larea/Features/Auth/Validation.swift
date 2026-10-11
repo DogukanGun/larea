@@ -16,6 +16,12 @@ enum Validation {
         return nil
     }
 
+    static func resetCode(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty { return "Enter the code from the email." }
+        return trimmed.wholeMatch(of: /^\d{6}$/) == nil ? "The code has 6 digits." : nil
+    }
+
     static func displayName(_ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespaces)
         if trimmed.isEmpty { return "Pick a display name." }

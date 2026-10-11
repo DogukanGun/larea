@@ -85,6 +85,15 @@ struct LoginRequest: Encodable, Sendable {
 }
 
 struct RefreshRequest: Encodable, Sendable { let refreshToken: String }
+
+struct ForgotPasswordRequest: Encodable, Sendable { let email: String }
+
+struct ResetPasswordRequest: Encodable, Sendable {
+    let email: String
+    let code: String
+    let password: String
+    let deviceLabel: String?
+}
 struct UpdateMeRequest: Encodable, Sendable { let displayName: String }
 
 struct VerificationStatus: Decodable, Sendable, Equatable {

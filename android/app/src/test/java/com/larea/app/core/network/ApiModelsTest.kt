@@ -25,6 +25,16 @@ class ApiModelsTest {
     }
 
     @Test
+    fun `encodes password reset requests`() {
+        val forgot = LareaJson.encodeToJsonElement(ForgotPasswordRequest.serializer(), ForgotPasswordRequest("anna@example.com")).jsonObject
+        assertEquals("anna@example.com", forgot["email"]?.jsonPrimitive?.content)
+        val reset = LareaJson.encodeToJsonElement(ResetPasswordRequest.serializer(), ResetPasswordRequest("anna@example.com", "042917", "a-new-password", "Pixel 8")).jsonObject
+        assertEquals("042917", reset["code"]?.jsonPrimitive?.content)
+        assertEquals("a-new-password", reset["password"]?.jsonPrimitive?.content)
+        assertEquals("Pixel 8", reset["deviceLabel"]?.jsonPrimitive?.content)
+    }
+
+    @Test
     fun `reconnect delay grows and caps`() {
         assertEquals(1_000L, reconnectDelayMs(1))
         assertEquals(2_000L, reconnectDelayMs(2))

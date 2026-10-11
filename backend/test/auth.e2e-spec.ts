@@ -1,5 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { MAIL_CLIENT } from '../src/mail/mail.types.js';
+import type { FakeMailClient } from '../src/testing/fake-mail.client.js';
 import { auth, createTestApp, registerUser, type TestContext } from './helpers.js';
+
+function resetCode(ctx: TestContext, email: string): string {
+  const mail = ctx.app.get<FakeMailClient>(MAIL_CLIENT).lastTo(email);
+  const code = mail?.text.match(/\b(\d{6})\b/)?.[1];
+  if (!code) throw new Error(`no reset code mailed to ${email}`);
+  return code;
+}
 
 describe('auth and profile', () => {
   let ctx: TestContext;
@@ -44,6 +53,45 @@ describe('auth and profile', () => {
     await ctx.http().post('/auth/login').send({ email: user.email, password: 'wrong-password-123' }).expect(401);
     const ok = await ctx.http().post('/auth/login').send({ email: user.email, password: user.password }).expect(200);
     expect(ok.body.user.id).toBe(user.id);
+  });
+
+  it('resets a forgotten password with the emailed code and signs out other devices', async () => {
+    const user = await registerUser(ctx);
+    await ctx.http().post('/auth/password/forgot').send({ email: user.email.toUpperCase() }).expect(204);
+    const code = resetCode(ctx, user.email);
+
+    const newPassword = 'a-brand-new-password';
+    const reset = await ctx.http().post('/auth/password/reset').send({ email: user.email, code, password: newPassword }).expect(200);
+    expect(reset.body.user.id).toBe(user.id);
+    expect(reset.body.refreshToken).not.toBe(user.refreshToken);
+
+    await ctx.http().post('/auth/refresh').send({ refreshToken: user.refreshToken }).expect(401);
+    await ctx.http().post('/auth/login').send({ email: user.email, password: user.password }).expect(401);
+    await ctx.http().post('/auth/login').send({ email: user.email, password: newPassword }).expect(200);
+
+    // A code works once.
+    const again = await ctx.http().post('/auth/password/reset').send({ email: user.email, code, password: 'yet-another-password' }).expect(400);
+    expect(again.body.code).toBe('INVALID_RESET_CODE');
+  });
+
+  it('answers the same for unknown emails and throws a code away after five wrong guesses', async () => {
+    await ctx.http().post('/auth/password/forgot').send({ email: 'nobody-here@example.test' }).expect(204);
+    expect(ctx.app.get<FakeMailClient>(MAIL_CLIENT).lastTo('nobody-here@example.test')).toBeUndefined();
+
+    const user = await registerUser(ctx);
+    await ctx.http().post('/auth/password/forgot').send({ email: user.email }).expect(204);
+    const code = resetCode(ctx, user.email);
+    const wrong = code === '000000' ? '111111' : '000000';
+    for (let i = 0; i < 5; i++) {
+      const res = await ctx.http().post('/auth/password/reset').send({ email: user.email, code: wrong, password: 'whatever-password' }).expect(400);
+      expect(res.body.code).toBe('INVALID_RESET_CODE');
+    }
+    await ctx.http().post('/auth/password/reset').send({ email: user.email, code, password: 'whatever-password' }).expect(400);
+    await ctx.http().post('/auth/login').send({ email: user.email, password: user.password }).expect(200);
+
+    // Asking again within a minute does not mail another code.
+    await ctx.http().post('/auth/password/forgot').send({ email: user.email }).expect(204);
+    expect(resetCode(ctx, user.email)).toBe(code);
   });
 
   it('rejects missing or bad tokens', async () => {

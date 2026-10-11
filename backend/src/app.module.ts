@@ -5,6 +5,7 @@ import { CommonModule } from './common/common.module.js';
 import { ConfigModule } from './config/config.module.js';
 import { HealthModule } from './health/health.module.js';
 import { LoggerModule } from './infra/logger/logger.module.js';
+import { MailModule } from './mail/mail.module.js';
 import { PrismaModule } from './infra/prisma/prisma.module.js';
 import { RedisModule } from './infra/redis/redis.module.js';
 import { UsersModule } from './users/users.module.js';
@@ -34,6 +35,7 @@ import { VerificationModule } from './verification/verification.module.js';
     RedisModule,
     RealtimeCoreModule,
     ModerationModule,
+    MailModule,
     CommonModule,
     AuthModule,
     UsersModule,

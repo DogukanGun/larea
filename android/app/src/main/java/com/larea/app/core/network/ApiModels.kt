@@ -74,6 +74,12 @@ data class LoginRequest(val email: String, val password: String, val deviceLabel
 data class RefreshRequest(val refreshToken: String)
 
 @Serializable
+data class ForgotPasswordRequest(val email: String)
+
+@Serializable
+data class ResetPasswordRequest(val email: String, val code: String, val password: String, val deviceLabel: String? = null)
+
+@Serializable
 data class UpdateMeRequest(val displayName: String)
 
 @Serializable

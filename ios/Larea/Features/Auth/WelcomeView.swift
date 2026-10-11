@@ -2,6 +2,7 @@ import SwiftUI
 
 enum AuthRoute: Hashable {
     case signIn, signUp
+    case forgotPassword(email: String)
 }
 
 struct AuthFlowView: View {
@@ -12,8 +13,9 @@ struct AuthFlowView: View {
             WelcomeView(onCreateAccount: { path.append(AuthRoute.signUp) }, onSignIn: { path.append(AuthRoute.signIn) })
                 .navigationDestination(for: AuthRoute.self) { route in
                     switch route {
-                    case .signIn: SignInView(onCreateAccount: { path.append(AuthRoute.signUp) })
+                    case .signIn: SignInView(onCreateAccount: { path.append(AuthRoute.signUp) }, onForgotPassword: { path.append(AuthRoute.forgotPassword(email: $0)) })
                     case .signUp: SignUpView(onSignIn: { path.append(AuthRoute.signIn) })
+                    case .forgotPassword(let email): ForgotPasswordView(initialEmail: email)
                     }
                 }
         }

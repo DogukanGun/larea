@@ -16,6 +16,8 @@ interface LareaApi {
     @POST("auth/register") suspend fun register(@Body body: RegisterRequest): AuthResult
     @POST("auth/login") suspend fun login(@Body body: LoginRequest): AuthResult
     @POST("auth/logout") suspend fun logout(@Body body: RefreshRequest)
+    @POST("auth/password/forgot") suspend fun forgotPassword(@Body body: ForgotPasswordRequest)
+    @POST("auth/password/reset") suspend fun resetPassword(@Body body: ResetPasswordRequest): AuthResult
 
     @GET("me") suspend fun me(): MeView
     @PATCH("me") suspend fun updateMe(@Body body: UpdateMeRequest): MeView

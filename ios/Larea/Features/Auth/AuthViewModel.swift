@@ -21,6 +21,20 @@ final class AuthViewModel {
         await run { _ = try await self.sessions.register(email: email, password: password, displayName: displayName) }
     }
 
+    /// Returns true once the backend accepted the request (the code is on its way if the account exists).
+    func sendResetCode(email: String) async -> Bool {
+        var sent = false
+        await run {
+            try await self.sessions.requestPasswordReset(email: email)
+            sent = true
+        }
+        return sent
+    }
+
+    func resetPassword(email: String, code: String, password: String) async {
+        await run { _ = try await self.sessions.resetPassword(email: email, code: code, password: password) }
+    }
+
     private func run(_ block: () async throws -> Void) async {
         guard !busy else { return }
         busy = true

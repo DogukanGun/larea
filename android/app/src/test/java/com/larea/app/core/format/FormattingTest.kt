@@ -13,6 +13,15 @@ class FormattingTest {
     private val us = Locale.US
 
     @Test
+    fun `validates password reset codes`() {
+        assertNull(Validation.resetCode("042917"))
+        assertNull(Validation.resetCode(" 042917 "))
+        assertNotNull(Validation.resetCode(""))
+        assertNotNull(Validation.resetCode("12345"))
+        assertNotNull(Validation.resetCode("12345a"))
+    }
+
+    @Test
     fun `edit text round trips`() {
         assertEquals("12,50", Money.editText(1250, de))
         assertEquals("50", Money.editText(5000, de))
