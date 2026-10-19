@@ -13,6 +13,7 @@ const toc = [
   { id: "rules", label: "Community rules" },
   { id: "moderation", label: "Moderation" },
   { id: "market", label: "Marketplace" },
+  { id: "pins", label: "Message pins" },
   { id: "solana", label: "Solana features" },
   { id: "liability", label: "Liability" },
 ];
@@ -103,7 +104,24 @@ export default function TermsPage() {
         </li>
       </ul>
 
-      <h2 id="solana">5. Solana features (dApp Store build)</h2>
+      <h2 id="pins">5. Message pins</h2>
+      <ul>
+        <li>
+          <strong>What you buy.</strong> A message pin places your message on the map for a fixed time: 24 hours near you, 3
+          days in your city or country, 7 days abroad. The price for each tier is shown before you pay. A pin is used up when
+          it runs out; it can&apos;t be extended or moved.
+        </li>
+        <li>
+          <strong>Paying.</strong> On iPhone you pay through the App Store, on Android through Google Play, in the Solana build
+          in USDC. Refunds for App Store and Google Play purchases are handled by Apple and Google under their own rules.
+        </li>
+        <li>
+          <strong>Rules.</strong> Pins and the chat under them follow the community rules and are moderated like any other
+          message. As a pin&apos;s owner you can hide messages and remove people from its chat; use this fairly.
+        </li>
+      </ul>
+
+      <h2 id="solana">6. Solana features (dApp Store build)</h2>
       <ul>
         <li>
           <strong>Your wallet.</strong> These features use a Solana wallet that you control. Larea never holds your keys. You
@@ -135,9 +153,9 @@ export default function TermsPage() {
         </li>
       </ul>
 
-      <h2 id="liability">6. Availability and liability</h2>
+      <h2 id="liability">7. Availability and liability</h2>
       <p>
-        Larea is in beta and offered free of charge. We work to keep it available, but features can change and the service can
+        Larea is free to use; message pins are optional paid extras. We work to keep it available, but features can change and the service can
         be interrupted.
       </p>
       <p>
@@ -147,13 +165,13 @@ export default function TermsPage() {
       </p>
       <p>We are not responsible for content posted by users or for deals between users.</p>
 
-      <h2>7. Ending your account</h2>
+      <h2>8. Ending your account</h2>
       <p>
         You can delete your account at any time in the app (Profile → Delete account). We may close accounts that seriously or
         repeatedly break these terms.
       </p>
 
-      <h2>8. Changes and law</h2>
+      <h2>9. Changes and law</h2>
       <p>
         We may update these terms. We will tell you in the app before significant changes take effect. If you don&apos;t agree,
         you can delete your account.

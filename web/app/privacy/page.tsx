@@ -57,6 +57,10 @@ export default function PrivacyPage() {
         the device name your phone reports. <em>Purpose:</em> providing your account. <em>Legal basis:</em> performance of
         our contract with you (Art. 6(1)(b) GDPR).
       </p>
+      <p>
+        If you forget your password, we email a six-digit code to your account&apos;s address. The code is stored only as a
+        hash and expires after 15 minutes. These emails are sent through Google&apos;s mail servers (see section 5).
+      </p>
 
       <h3>Age assurance (18+)</h3>
       <p>
@@ -75,7 +79,8 @@ export default function PrivacyPage() {
         <li>when it shows places near you;</li>
         <li>when you join a chat;</li>
         <li>at regular intervals while you are in a chat, so we can see you are still there;</li>
-        <li>when you post or make an offer in the marketplace.</li>
+        <li>when you post or make an offer in the marketplace;</li>
+        <li>when you buy a message pin, or open the chat under one.</li>
       </ul>
       <p>
         We use it to decide whether you are close enough (200 m for chats, a larger radius for the marketplace) and to stop
@@ -120,6 +125,24 @@ export default function PrivacyPage() {
       </p>
       <p>
         Deal records are kept as long as commercial and tax law requires (up to 10 years in Germany).
+      </p>
+      <p>
+        <em>Legal basis:</em> Art. 6(1)(b) and (c) GDPR.
+      </p>
+
+      <h3>Message pins</h3>
+      <p>
+        A message pin is a paid message you place on the map. We store its text, the map position you chose, its tier and
+        how long it runs. Everyone who opens the map sees the pin and its text; only people near it can write in the chat
+        under it. As the pin&apos;s owner you can hide messages in that chat and remove people from it, and we store those
+        actions.
+      </p>
+      <p>
+        On iPhone the purchase is handled by Apple, on Android by Google Play, in the Solana build in USDC from your wallet.
+        We receive the store&apos;s transaction record (product, transaction ID, date) to confirm the payment, never your card
+        or account details. To find the city and country of a pin&apos;s position for pricing, our server looks the position up
+        in OpenStreetMap&apos;s Nominatim service; no other data is sent. Pins and their purchase records are kept as long as
+        commercial and tax law requires; messages in a pin&apos;s chat are deleted like other chat messages.
       </p>
       <p>
         <em>Legal basis:</em> Art. 6(1)(b) and (c) GDPR.
@@ -193,8 +216,13 @@ export default function PrivacyPage() {
             <td>Ireland / USA</td>
           </tr>
           <tr>
+            <td>Google (Gmail SMTP)</td>
+            <td>Sending password reset emails: your email address and the code</td>
+            <td>EU / USA (DPF, SCCs)</td>
+          </tr>
+          <tr>
             <td>Apple and Google</td>
-            <td>The age-range signal on your phone; app distribution</td>
+            <td>The age-range signal on your phone; app distribution; in-app purchases of message pins</td>
             <td>Under their own privacy policies</td>
           </tr>
           <tr>
@@ -205,6 +233,11 @@ export default function PrivacyPage() {
           <tr>
             <td>OpenStreetMap / Overpass API</td>
             <td>Looking up public places for an area. Our server makes these requests; no personal data is sent.</td>
+            <td>EU</td>
+          </tr>
+          <tr>
+            <td>OpenStreetMap Nominatim</td>
+            <td>Finding the city and country of a message pin&apos;s position. Our server sends only the coordinates.</td>
             <td>EU</td>
           </tr>
           <tr>
@@ -243,6 +276,14 @@ export default function PrivacyPage() {
           <tr>
             <td>Closed marketplace listings and their photos</td>
             <td>30 days after closing</td>
+          </tr>
+          <tr>
+            <td>Password reset codes</td>
+            <td>15 minutes</td>
+          </tr>
+          <tr>
+            <td>Message pins and their purchase records</td>
+            <td>As required by commercial and tax law (up to 10 years)</td>
           </tr>
           <tr>
             <td>Deal and payment records</td>

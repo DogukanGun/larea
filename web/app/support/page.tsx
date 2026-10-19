@@ -5,13 +5,21 @@ import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Support",
-  description: "Help with Larea: joining chats, the age check, safety, the marketplace, wallets and deleting your account.",
+  description: "Help with Larea: joining chats, passwords, the age check, safety, message pins, the marketplace, wallets and deleting your account.",
 };
 
 const faq: [string, React.ReactNode][] = [
   [
     "Why can't I join a chat?",
     "You need to be within 200 metres of the place, with precise location turned on for Larea. Indoors GPS can be weak: step outside for a moment or wait a few seconds for a better fix. Mock-location apps are blocked.",
+  ],
+  [
+    "I forgot my password.",
+    "On the sign-in screen tap Forgot password?, enter your email and tap Send code. We email you a six-digit code that works for 15 minutes; enter it with a new password and you're signed in. Other devices are signed out. No email after a few minutes? Check your spam folder, or tap Send a new code.",
+  ],
+  [
+    "What is a message pin?",
+    "A paid message you place anywhere on the map: long-press the map or tap Pin a message. The price depends on how far away it is, and people near the pin can chat under it while you moderate that chat. Purchases on iPhone and Android go through the App Store or Google Play; ask them for a refund.",
   ],
   [
     "How does the 18+ check work?",

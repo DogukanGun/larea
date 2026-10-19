@@ -30,5 +30,5 @@ export const site = {
     city: "81737 München",
     country: "Germany",
   },
-  legalUpdated: "October 2, 2026",
+  legalUpdated: "October 19, 2026",
 } as const;
